@@ -19,6 +19,7 @@
 // THE SOFTWARE.
 
 import Foundation
+import Starscream
 
 // ----------------------------------------------------------------------
 
@@ -125,8 +126,8 @@ public enum TransportReadyState {
  A `Transport` implementation that relies on URLSession's native WebSocket
  implementation.
 
- This implementation ships default with SwiftPhoenixClient however
- SwiftPhoenixClient supports earlier OS versions using one of the submodule
+ This implementation ships default with SwiftClient however
+ SwiftClient supports earlier OS versions using one of the submodule
  `Transport` implementations. Or you can create your own implementation using
  your own WebSocket library or implementation.
  */
@@ -277,4 +278,97 @@ public class URLSessionTransport: NSObject, Transport, URLSessionWebSocketDelega
         // the reconnect logic.
         delegate?.onClose(code: RealtimeClient.CloseCode.abnormal.rawValue)
     }
+}
+
+public class StarscreamTransport: NSObject, Transport, WebSocketDelegate {
+    /// The URL to connect to
+    private let url: URL
+
+    /// The underlying Starscream WebSocket that data is transfered over.
+    private var socket: WebSocket?
+
+    /**
+     Initializes a `Transport` layer built using Starscream's WebSocket, which is available for
+     previous iOS targets back to iOS 10.
+
+     If you are targeting iOS 13 or later, then you do not need to use this transport layer unless
+     you specifically prefer using Starscream as the underlying Socket connection.
+
+     Example:
+
+     ```swift
+     let url = URL("wss://example.com/socket")
+     let transport: Transport = StarscreamTransport(url: url)
+     ```
+
+     - parameter url: URL to connect to
+     */
+    public init(url: URL) {
+        self.url = url
+        super.init()
+    }
+
+    // MARK: - Transport
+
+    public var readyState: TransportReadyState = .closed
+    public var delegate: TransportDelegate?
+
+    public func connect() {
+        // Set the trasport state as connecting
+        readyState = .connecting
+
+        let socket = WebSocket(url: url)
+        socket.delegate = self
+        socket.connect()
+
+        self.socket = socket
+    }
+
+    public func disconnect(code: Int, reason _: String?) {
+        /*
+         TODO:
+         1. Provide a "strict" mode that fails if an invalid close code is given
+         2. If strict mode is disabled, default to CloseCode.invalid
+         3. Provide default .normalClosure function
+         */
+        guard
+            let closeCode = CloseCode(rawValue: UInt16(code))
+        else {
+            fatalError("Could not create a CloseCode with invalid code: [\(code)].")
+        }
+
+        readyState = .closing
+        socket?.disconnect(closeCode: closeCode.rawValue)
+    }
+
+    public func send(data: Data) {
+        socket?.write(data: data)
+    }
+
+    // MARK: - WebSocketDelegate
+
+    public func websocketDidConnect(socket _: WebSocketClient) {
+        readyState = .open
+        delegate?.onOpen()
+    }
+
+    public func websocketDidDisconnect(socket _: WebSocketClient, error: Error?) {
+        let closeCode = (error as? WSError)?.code ?? RealtimeClient.CloseCode.abnormal.rawValue
+        // Set the state of the Transport to closed
+        readyState = .closed
+
+        // Inform the Transport's delegate that an error occurred.
+        if let safeError = error { delegate?.onError(error: safeError) }
+
+        // An abnormal error is results in an abnormal closure, such as internet getting dropped
+        // so inform the delegate that the Transport has closed abnormally. This will kick off
+        // the reconnect logic.
+        delegate?.onClose(code: closeCode)
+    }
+
+    public func websocketDidReceiveMessage(socket _: WebSocketClient, text: String) {
+        delegate?.onMessage(message: text)
+    }
+
+    public func websocketDidReceiveData(socket _: WebSocketClient, data _: Data) { /* no-op */ }
 }

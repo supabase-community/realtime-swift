@@ -152,13 +152,17 @@ public class RealtimeClient: TransportDelegate {
     // MARK: - Initialization
 
     // ----------------------------------------------------------------------
-    @available(macOS 10.15, iOS 13, watchOS 6, tvOS 13, *)
-    public init(_ endPoint: String,
+//    @available(macOS 10.15, iOS 13, watchOS 6, tvOS 13, *)
+    public init(endPoint: String,
                 params: [String: Any]? = nil)
     {
         endPointUrl = RealtimeClient.buildEndpointUrl(endpoint: endPoint,
                                                       params: params)
-        transport = URLSessionTransport(url: endPointUrl)
+        if #available(OSX 10.15, *) {
+            transport = URLSessionTransport(url: endPointUrl)
+        } else {
+            transport = StarscreamTransport(url: endPointUrl)
+        }
         self.params = params
         self.endPoint = endPoint
 

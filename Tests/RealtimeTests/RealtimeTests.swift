@@ -18,7 +18,8 @@ final class RealtimeTests: XCTestCase {
         }
     }
 
-    var socket = RealtimeClient("\(supabaseUrl())/realtime/v1", params: ["apikey": supabaseKey()])
+    var socket = RealtimeClient("https://galflylhyokjtdotwnde.supabase.co/realtime/v1", params: ["apikey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlhdCI6MTYwODI3ODIyNCwiZXhwIjoxOTIzODU0MjI0fQ.SaWTr6MKjcSCXSnylOrTjHBOt6oU-e82oRPhddMEu4U"])
+//    var socket = RealtimeClient("\(supabaseUrl())/realtime/v1", params: ["apikey": supabaseKey()])
 
     func testConnection() {
         let e = expectation(description: "testConnection")
@@ -38,7 +39,7 @@ final class RealtimeTests: XCTestCase {
 
         socket.connect()
 
-        waitForExpectations(timeout: 30) { error in
+        waitForExpectations(timeout: 3000) { error in
             if let error = error {
                 XCTFail("testConnection failed: \(error.localizedDescription)")
             }
