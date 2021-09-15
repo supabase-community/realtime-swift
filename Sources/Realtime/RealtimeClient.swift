@@ -503,7 +503,7 @@ public class RealtimeClient: TransportDelegate {
         let callback: (() throws -> Void) = {
             var body: [String: Any] = [
                 "topic": topic.raw,
-                "event": event,
+                "event": event.raw,
                 "payload": payload,
             ]
 
