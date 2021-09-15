@@ -93,7 +93,7 @@ public class Push {
         startTimeout()
         sent = true
         channel?.socket?.push(
-            topic: channel?.topic ?? "",
+            topic: channel?.topic ?? .all,
             event: event,
             payload: payload,
             ref: ref,

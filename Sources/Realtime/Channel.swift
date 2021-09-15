@@ -57,8 +57,8 @@ struct Binding {
 import Foundation
 
 public class Channel {
-    /// The topic of the Channel. e.g. "rooms:friends"
-    public let topic: String
+    /// The topic of the Channel. e.g. `.table("rooms", "friends")`
+    public let topic: ChannelTopic
 
     /// The params sent when joining the channel
     public var params: [String: Any] {
@@ -100,7 +100,7 @@ public class Channel {
     /// - parameter topic: Topic of the Channel
     /// - parameter params: Optional. Parameters to send when joining.
     /// - parameter socket: Socket that the channel is a part of
-    init(topic: String, params: [String: Any] = [:], socket: RealtimeClient) {
+    init(topic: ChannelTopic, params: [String: Any] = [:], socket: RealtimeClient) {
         state = ChannelState.closed
         self.topic = topic
         self.params = params

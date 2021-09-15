@@ -29,7 +29,7 @@ public class Message {
     internal let joinRef: String?
 
     /// Message topic
-    public let topic: String
+    public let topic: ChannelTopic
 
     /// Message event
     public let event: ChannelEvent
@@ -46,7 +46,7 @@ public class Message {
     }
 
     init(ref: String = "",
-         topic: String = "",
+         topic: ChannelTopic = .all,
          event: ChannelEvent = .all,
          payload: [String: Any] = [:],
          joinRef: String? = nil)
@@ -67,7 +67,7 @@ public class Message {
             let event = json["event"] as? String,
             let payload = json["payload"] as? [String: Any]
         {
-            self.topic = topic
+            self.topic = ChannelTopic(from: topic) ?? .all
             self.event = ChannelEvent(from: event) ?? .all
             self.payload = payload
         } else {

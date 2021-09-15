@@ -123,7 +123,7 @@ public enum ChannelEvent {
     static func isLifecyleEvent(_ event: ChannelEvent) -> Bool {
         switch event {
         case .join, .leave, .reply, .error, .close: return true
-        case .all, .insert, .update, .delete: return false
+        case .heartbeat, .all, .insert, .update, .delete, .channelReply: return false
         // Most likely new events will be about notification
         // not about lifecycle.
         @unknown default: return false
@@ -133,6 +133,59 @@ public enum ChannelEvent {
 
 extension ChannelEvent: Equatable {
     public static func ==(lhs: ChannelEvent, rhs: ChannelEvent) -> Bool {
+        return lhs.raw == rhs.raw
+    }
+}
+
+/// Represents the different topic
+// a channel can subscribe to.
+public enum ChannelTopic {
+    case all
+    case schema(schema: String)
+    case table(schema: String, table: String)
+    case column(schema: String, table: String, column: String, value: String)
+
+    case heartbeat
+
+    public var raw: String {
+        switch self {
+        case .all: return "realtime:*"
+        case .schema(let table): return "realtime:\(table)"
+        case .table(let schema, let table): return "realtime:\(schema):\(table)"
+        case .column(let schema, let table, let column, let value): return "realtime:\(schema):\(table):\(column)=eq.\(value)"
+        case .heartbeat: return "phoenix"
+        }
+    }
+
+    public init?(from type: String) {
+        if type == "realtime:*" || type == "*" {
+            self = .all
+        } else if type == "phoenix" {
+            self = .heartbeat
+        } else {
+            let parts = type.split(separator: ":")
+            switch parts.count {
+            case 1:
+                self = .schema(schema: String(parts[0]))
+            case 2:
+                self = .table(schema: String(parts[0]), table: String(parts[1]))
+            case 3:
+                let condition = parts[2].split(separator: "=")
+                if condition.count == 2,
+                    condition[1].hasPrefix("eq.") {
+                    self = .column(schema: String(parts[0]), table: String(parts[1]), column: String(condition[0]), value: String(condition[1].dropFirst(3)))
+                } else {
+                    return nil
+                }
+            default:
+                return nil
+            }
+        }
+    }
+}
+
+extension ChannelTopic {
+    public static func ==(lhs: ChannelTopic, rhs: ChannelTopic) -> Bool {
         return lhs.raw == rhs.raw
     }
 }
