@@ -63,24 +63,32 @@ final class RealtimeTests: XCTestCase {
         allChanges.on(.all) { message in
             print(message)
         }
+        allChanges.subscribe()
+        allChanges.unsubscribe()
         allChanges.off(.all)
 
         let allPublicInsertChanges = client.channel(.schema("public"))
         allPublicInsertChanges.on(.insert) { message in
             print(message)
         }
+        allPublicInsertChanges.subscribe()
+        allPublicInsertChanges.unsubscribe()
         allPublicInsertChanges.off(.insert)
 
         let allUsersUpdateChanges = client.channel(.table("users", schema: "public"))
         allUsersUpdateChanges.on(.update) { message in
             print(message)
         }
+        allUsersUpdateChanges.subscribe()
+        allUsersUpdateChanges.unsubscribe()
         allUsersUpdateChanges.off(.update)
 
         let allUserId99Changes = client.channel(.column("id", value: "99", table: "users", schema: "public"))
         allUserId99Changes.on(.all){ message in
             print(message)
         }
+        allUserId99Changes.subscribe()
+        allUserId99Changes.unsubscribe()
         allUserId99Changes.off(.all)
 
         XCTAssertEqual(client.isConnected, false)
