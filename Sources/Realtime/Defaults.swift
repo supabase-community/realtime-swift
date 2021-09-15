@@ -104,7 +104,7 @@ public enum ChannelEvent {
     }
 
     public init?(from type: String) {
-        switch type {
+        switch type.lowercased() {
         case "heartbeat": self = .heartbeat
         case "phx_join": self = .join
         case "phx_leave": self = .leave
