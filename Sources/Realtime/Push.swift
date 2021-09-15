@@ -25,8 +25,8 @@ public class Push {
     /// The channel sending the Push
     public weak var channel: Channel?
 
-    /// The event, for example `phx_join`
-    public let event: String
+    /// The event, for example `ChannelEvent.join`
+    public let event: ChannelEvent
 
     /// The payload, for example ["user_id": "abc123"]
     public var payload: [String: Any]
@@ -53,7 +53,7 @@ public class Push {
     var ref: String?
 
     /// The event that is associated with the reference ID of the Push
-    var refEvent: String?
+    var refEvent: ChannelEvent?
 
     /// Initializes a Push
     ///
@@ -62,7 +62,7 @@ public class Push {
     /// - parameter payload: Optional. The Payload to send, e.g. ["user_id": "abc123"]
     /// - parameter timeout: Optional. The push timeout. Default is 10.0s
     init(channel: Channel,
-         event: String,
+         event: ChannelEvent,
          payload: [String: Any] = [:],
          timeout: TimeInterval = Defaults.timeoutInterval)
     {
@@ -214,7 +214,7 @@ public class Push {
             let socket = channel.socket else { return }
 
         let ref = socket.makeRef()
-        let refEvent = channel.replyEventName(ref)
+        let refEvent = ChannelEvent.channelReply(ref)
 
         self.ref = ref
         self.refEvent = refEvent

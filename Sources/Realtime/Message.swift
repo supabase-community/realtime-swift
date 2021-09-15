@@ -32,7 +32,7 @@ public class Message {
     public let topic: String
 
     /// Message event
-    public let event: String
+    public let event: ChannelEvent
 
     /// Message payload
     public var payload: [String: Any]
@@ -47,7 +47,7 @@ public class Message {
 
     init(ref: String = "",
          topic: String = "",
-         event: String = "",
+         event: ChannelEvent = .all,
          payload: [String: Any] = [:],
          joinRef: String? = nil)
     {
@@ -68,7 +68,7 @@ public class Message {
             let payload = json["payload"] as? [String: Any]
         {
             self.topic = topic
-            self.event = event
+            self.event = ChannelEvent(from: event) ?? .all
             self.payload = payload
         } else {
             return nil

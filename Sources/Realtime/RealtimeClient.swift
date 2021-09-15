@@ -495,7 +495,7 @@ public class RealtimeClient: TransportDelegate {
     /// - parameter ref: Optional. Defaults to nil
     /// - parameter joinRef: Optional. Defaults to nil
     internal func push(topic: String,
-                       event: String,
+                       event: ChannelEvent,
                        payload: [String: Any],
                        ref: String? = nil,
                        joinRef: String? = nil)
@@ -606,7 +606,7 @@ public class RealtimeClient: TransportDelegate {
         // Clear heartbeat ref, preventing a heartbeat timeout disconnect
         if message.ref == pendingHeartbeatRef { pendingHeartbeatRef = nil }
 
-        if message.event == "phx_close" {
+        if message.event == .close {
             print("Close Event Received")
         }
 

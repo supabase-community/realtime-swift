@@ -18,8 +18,7 @@ final class RealtimeTests: XCTestCase {
         }
     }
 
-    var socket = RealtimeClient("https://galflylhyokjtdotwnde.supabase.co/realtime/v1", params: ["apikey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlhdCI6MTYwODI3ODIyNCwiZXhwIjoxOTIzODU0MjI0fQ.SaWTr6MKjcSCXSnylOrTjHBOt6oU-e82oRPhddMEu4U"])
-//    var socket = RealtimeClient("\(supabaseUrl())/realtime/v1", params: ["apikey": supabaseKey()])
+   var socket = RealtimeClient(endPoint: "\(supabaseUrl())/realtime/v1", params: ["apikey": supabaseKey()])
 
     func testConnection() {
         let e = expectation(description: "testConnection")

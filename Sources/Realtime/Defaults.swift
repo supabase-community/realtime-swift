@@ -68,19 +68,71 @@ public enum ChannelState: String {
 }
 
 /// Represents the different events that can be sent through
-/// a channel regarding a Channel's lifecycle.
+/// a channel regarding a Channel's lifecycle or
+/// that can be registered to be notified of.
 public enum ChannelEvent {
-    public static let heartbeat = "heartbeat"
-    public static let join = "phx_join"
-    public static let leave = "phx_leave"
-    public static let reply = "phx_reply"
-    public static let error = "phx_error"
-    public static let close = "phx_close"
+    case heartbeat
+    case join
+    case leave
+    case reply
+    case error
+    case close
 
-    static func isLifecyleEvent(_ event: String) -> Bool {
-        switch event {
-        case join, leave, reply, error, close: return true
-        default: return false
+    case all
+    case insert
+    case update
+    case delete
+
+    case channelReply(String)
+
+    public var raw: String {
+        switch self {
+        case .heartbeat: return "heartbeat"
+        case .join: return "phx_join"
+        case .leave: return "phx_leave"
+        case .reply: return "phx_reply"
+        case .error: return "phx_error"
+        case .close: return "phx_close"
+
+        case .all: return "*"
+        case .insert: return "insert"
+        case .update: return "update"
+        case .delete: return "delete"
+
+        case .channelReply(let reference): return "chan_reply_\(reference)"
         }
+    }
+
+    public init?(from type: String) {
+        switch type {
+        case "heartbeat": self = .heartbeat
+        case "phx_join": self = .join
+        case "phx_leave": self = .leave
+        case "phx_reply": self = .reply
+        case "phx_error": self = .error
+        case "phx_close": self = .close
+        case  "*": self = .all
+        case "insert": self = .insert
+        case "update": self = .update
+        case "delete": self = .delete
+        default: return nil
+        }
+    }
+
+
+    static func isLifecyleEvent(_ event: ChannelEvent) -> Bool {
+        switch event {
+        case .join, .leave, .reply, .error, .close: return true
+        case .all, .insert, .update, .delete: return false
+        // Most likely new events will be about notification
+        // not about lifecycle.
+        @unknown default: return false
+        }
+    }
+}
+
+extension ChannelEvent: Equatable {
+    public static func ==(lhs: ChannelEvent, rhs: ChannelEvent) -> Bool {
+        return lhs.raw == rhs.raw
     }
 }
