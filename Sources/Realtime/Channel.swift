@@ -476,7 +476,7 @@ public class Channel {
     ///
     /// Example:
     ////
-    ///     channel.leave().receive("ok") { _ in { print("left") }
+    ///     channel.unsubscribe().receive("ok") { _ in { print("left") }
     ///
     /// - parameter timeout: Optional timeout
     /// - return: Push that can add receive hooks

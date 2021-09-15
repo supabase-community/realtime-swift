@@ -20,15 +20,15 @@ client.connect()
 **Socket Hooks**
 
 ```swift
-socket.onOpen { 
+client.onOpen {
     print("Socket opened.")
 }
 
-socket.onError { error in
+client.onError { error in
     print("Socket error: ", error.localizedDescription)
 }
 
-socket.onClose {
+client.onClose {
     print("Socket closed")
 }
 ```
@@ -41,10 +41,55 @@ Call `disconnect()` on the socket:
 client.disconnect()
 ```
 
+### Subscribe to topics
+
+You can subscribe to all topic, or to specific schema parts.
+
+* Listen to all database changes:
+
+```swift
+let allChanges = client.channel(.all)
+allChanges.on(.all) { message in
+    print(message)
+}
+allChanges.off(.all)
+```
+
+* Listen to a specific schema's changes:
+
+```swift
+let allPublicInsertChanges = client.channel(.schema("public"))
+allPublicInsertChanges.on(.insert) { message in
+    print(message)
+}
+allPublicInsertChanges.off(.insert)
+```
+
+* Listen to a specific table's changes:
+
+```swift
+let allUsersUpdateChanges = client.channel(.table("users", schema: "public"))
+allUsersUpdateChanges.on(.update) { message in
+    print(message)
+}
+allUsersUpdateChanges.off(.update)
+```
+
+* Listen to a specific column's value changes:
+
+```swift
+let allUserId99Changes = client.channel(.column("id", value: "99", table: "users", schema: "public"))
+allUserId99Changes.on(.all){ message in
+    print(message)
+}
+allUserId99Changes.off(.all)
+```
+
+
 ## Credits
 
-- https://github.com/supabase/realtime-js 
-- https://github.com/davidstump/SwiftPhoenixClient 
+- https://github.com/supabase/realtime-js
+- https://github.com/davidstump/SwiftPhoenixClient
 
 ## License
 

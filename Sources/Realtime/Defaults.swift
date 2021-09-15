@@ -141,18 +141,18 @@ extension ChannelEvent: Equatable {
 // a channel can subscribe to.
 public enum ChannelTopic {
     case all
-    case schema(schema: String)
-    case table(schema: String, table: String)
-    case column(schema: String, table: String, column: String, value: String)
+    case schema(_ schema: String)
+    case table(_ table: String, schema: String)
+    case column(_ column: String, value: String, table: String, schema: String)
 
     case heartbeat
 
     public var raw: String {
         switch self {
         case .all: return "realtime:*"
-        case .schema(let table): return "realtime:\(table)"
-        case .table(let schema, let table): return "realtime:\(schema):\(table)"
-        case .column(let schema, let table, let column, let value): return "realtime:\(schema):\(table):\(column)=eq.\(value)"
+        case .schema(let name): return "realtime:\(name)"
+        case .table(let tableName, let schema): return "realtime:\(schema):\(tableName)"
+        case .column(let columnName, let value, let table, let schema): return "realtime:\(schema):\(table):\(columnName)=eq.\(value)"
         case .heartbeat: return "phoenix"
         }
     }
@@ -166,14 +166,14 @@ public enum ChannelTopic {
             let parts = type.split(separator: ":")
             switch parts.count {
             case 1:
-                self = .schema(schema: String(parts[0]))
+                self = .schema(String(parts[0]))
             case 2:
-                self = .table(schema: String(parts[0]), table: String(parts[1]))
+                self = .table(String(parts[1]), schema: String(parts[0]))
             case 3:
                 let condition = parts[2].split(separator: "=")
                 if condition.count == 2,
                     condition[1].hasPrefix("eq.") {
-                    self = .column(schema: String(parts[0]), table: String(parts[1]), column: String(condition[0]), value: String(condition[1].dropFirst(3)))
+                    self = .column(String(condition[0]), value: String(condition[1].dropFirst(3)), table: String(parts[1]), schema: String(parts[0]))
                 } else {
                     return nil
                 }
