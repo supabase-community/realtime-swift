@@ -445,7 +445,7 @@ public class RealtimeClient: TransportDelegate {
     /// - parameter topic: Topic of the channel
     /// - parameter params: Optional. Parameters for the channel
     /// - return: A new channel
-    public func channel(_ topic: String,
+    public func channel(_ topic: ChannelTopic,
                         params: [String: Any] = [:]) -> Channel
     {
         let channel = Channel(topic: topic, params: params, socket: self)
@@ -494,16 +494,16 @@ public class RealtimeClient: TransportDelegate {
     /// - parameter payload:
     /// - parameter ref: Optional. Defaults to nil
     /// - parameter joinRef: Optional. Defaults to nil
-    internal func push(topic: String,
-                       event: String,
+    internal func push(topic: ChannelTopic,
+                       event: ChannelEvent,
                        payload: [String: Any],
                        ref: String? = nil,
                        joinRef: String? = nil)
     {
         let callback: (() throws -> Void) = {
             var body: [String: Any] = [
-                "topic": topic,
-                "event": event,
+                "topic": topic.raw,
+                "event": event.raw,
                 "payload": payload,
             ]
 
@@ -606,7 +606,7 @@ public class RealtimeClient: TransportDelegate {
         // Clear heartbeat ref, preventing a heartbeat timeout disconnect
         if message.ref == pendingHeartbeatRef { pendingHeartbeatRef = nil }
 
-        if message.event == "phx_close" {
+        if message.event == .close {
             print("Close Event Received")
         }
 
@@ -672,7 +672,7 @@ public class RealtimeClient: TransportDelegate {
     }
 
     // Leaves any channel that is open that has a duplicate topic
-    internal func leaveOpenTopic(topic: String) {
+    internal func leaveOpenTopic(topic: ChannelTopic) {
         guard
             let dupe = channels.first(where: { $0.topic == topic && ($0.isJoined || $0.isJoining) })
         else { return }
@@ -723,7 +723,7 @@ public class RealtimeClient: TransportDelegate {
 
         // The last heartbeat was acknowledged by the server. Send another one
         pendingHeartbeatRef = makeRef()
-        push(topic: "phoenix",
+        push(topic: .heartbeat,
              event: ChannelEvent.heartbeat,
              payload: [:],
              ref: pendingHeartbeatRef)

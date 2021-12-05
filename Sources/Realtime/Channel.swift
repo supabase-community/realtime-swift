@@ -24,7 +24,7 @@ import Swift
 /// Container class of bindings to the channel
 struct Binding {
     // The event that the Binding is bound to
-    let event: String
+    let event: ChannelEvent
 
     // The reference number of the Binding
     let ref: Int
@@ -57,8 +57,8 @@ struct Binding {
 import Foundation
 
 public class Channel {
-    /// The topic of the Channel. e.g. "rooms:friends"
-    public let topic: String
+    /// The topic of the Channel. e.g. `.table("rooms", "friends")`
+    public let topic: ChannelTopic
 
     /// The params sent when joining the channel
     public var params: [String: Any] {
@@ -100,7 +100,7 @@ public class Channel {
     /// - parameter topic: Topic of the Channel
     /// - parameter params: Optional. Parameters to send when joining.
     /// - parameter socket: Socket that the channel is a part of
-    init(topic: String, params: [String: Any] = [:], socket: RealtimeClient) {
+    init(topic: ChannelTopic, params: [String: Any] = [:], socket: RealtimeClient) {
         state = ChannelState.closed
         self.topic = topic
         self.params = params
@@ -217,7 +217,7 @@ public class Channel {
         // Perform when the join reply is received
         delegateOn(ChannelEvent.reply, to: self) { (self, message) in
             // Trigger bindings
-            self.trigger(event: self.replyEventName(message.ref),
+            self.trigger(event: ChannelEvent.channelReply(message.ref),
                          payload: message.payload,
                          ref: message.ref,
                          joinRef: message.joinRef)
@@ -340,13 +340,13 @@ public class Channel {
     /// Example:
     ///
     ///     let channel = socket.channel("topic")
-    ///     let ref1 = channel.on("event") { [weak self] (message) in
+    ///     let ref1 = channel.on(.all) { [weak self] (message) in
     ///         self?.print("do stuff")
     ///     }
-    ///     let ref2 = channel.on("event") { [weak self] (message) in
+    ///     let ref2 = channel.on(.all) { [weak self] (message) in
     ///         self?.print("do other stuff")
     ///     }
-    ///     channel.off("event", ref1)
+    ///     channel.off(.all, ref1)
     ///
     /// Since unsubscription of ref1, "do stuff" won't print, but "do other
     /// stuff" will keep on printing on the "event"
@@ -355,7 +355,7 @@ public class Channel {
     /// - parameter callback: Called with the event's message
     /// - return: Ref counter of the subscription. See `func off()`
     @discardableResult
-    public func on(_ event: String, callback: @escaping ((Message) -> Void)) -> Int {
+    public func on(_ event: ChannelEvent, callback: @escaping ((Message) -> Void)) -> Int {
         var delegated = Delegated<Message, Void>()
         delegated.manuallyDelegate(with: callback)
 
@@ -371,23 +371,23 @@ public class Channel {
     /// Example:
     ///
     ///     let channel = socket.channel("topic")
-    ///     let ref1 = channel.delegateOn("event", to: self) { (self, message) in
+    ///     let ref1 = channel.delegateOn(.all, to: self) { (self, message) in
     ///         self?.print("do stuff")
     ///     }
-    ///     let ref2 = channel.delegateOn("event", to: self) { (self, message) in
+    ///     let ref2 = channel.delegateOn(.all, to: self) { (self, message) in
     ///         self?.print("do other stuff")
     ///     }
-    ///     channel.off("event", ref1)
+    ///     channel.off(.all, ref1)
     ///
     /// Since unsubscription of ref1, "do stuff" won't print, but "do other
-    /// stuff" will keep on printing on the "event"
+    /// stuff" will keep on printing on all "event" (*).
     ///
     /// - parameter event: Event to receive
     /// - parameter owner: Class registering the callback. Usually `self`
     /// - parameter callback: Called with the event's message
     /// - return: Ref counter of the subscription. See `func off()`
     @discardableResult
-    public func delegateOn<Target: AnyObject>(_ event: String,
+    public func delegateOn<Target: AnyObject>(_ event: ChannelEvent,
                                               to owner: Target,
                                               callback: @escaping ((Target, Message) -> Void)) -> Int
     {
@@ -399,7 +399,7 @@ public class Channel {
 
     /// Shared method between `on` and `manualOn`
     @discardableResult
-    private func on(_ event: String, delegated: Delegated<Message, Void>) -> Int {
+    private func on(_ event: ChannelEvent, delegated: Delegated<Message, Void>) -> Int {
         let ref = bindingRef
         bindingRef = ref + 1
 
@@ -414,19 +414,19 @@ public class Channel {
     /// Example:
     ///
     ///     let channel = socket.channel("topic")
-    ///     let ref1 = channel.on("event") { _ in print("ref1 event" }
-    ///     let ref2 = channel.on("event") { _ in print("ref2 event" }
-    ///     let ref3 = channel.on("other_event") { _ in print("ref3 other" }
-    ///     let ref4 = channel.on("other_event") { _ in print("ref4 other" }
-    ///     channel.off("event", ref1)
-    ///     channel.off("other_event")
+    ///     let ref1 = channel.on(.insert) { _ in print("ref1 event" }
+    ///     let ref2 = channel.on(.insert) { _ in print("ref2 event" }
+    ///     let ref3 = channel.on(.update) { _ in print("ref3 other" }
+    ///     let ref4 = channel.on(.update) { _ in print("ref4 other" }
+    ///     channel.off(.insert, ref1)
+    ///     channel.off(.update)
     ///
     /// After this, only "ref2 event" will be printed if the channel receives
-    /// "event" and nothing is printed if the channel receives "other_event".
+    /// "insert" and nothing is printed if the channel receives "update".
     ///
     /// - parameter event: Event to unsubscribe from
     /// - paramter ref: Ref counter returned when subscribing. Can be omitted
-    public func off(_ event: String, ref: Int? = nil) {
+    public func off(_ event: ChannelEvent, ref: Int? = nil) {
         bindingsDel.removeAll { (bind) -> Bool in
             bind.event == event && (ref == nil || ref == bind.ref)
         }
@@ -437,14 +437,14 @@ public class Channel {
     /// Example:
     ///
     ///     channel
-    ///         .push("event", payload: ["message": "hello")
+    ///         .push(.update, payload: ["message": "hello")
     ///         .receive("ok") { _ in { print("message sent") }
     ///
     /// - parameter event: Event to push
     /// - parameter payload: Payload to push
     /// - parameter timeout: Optional timeout
     @discardableResult
-    public func push(_ event: String,
+    public func push(_ event: ChannelEvent,
                      payload: [String: Any],
                      timeout: TimeInterval = Defaults.timeoutInterval) -> Push
     {
@@ -476,7 +476,7 @@ public class Channel {
     ///
     /// Example:
     ////
-    ///     channel.leave().receive("ok") { _ in { print("left") }
+    ///     channel.unsubscribe().receive("ok") { _ in { print("left") }
     ///
     /// - parameter timeout: Optional timeout
     /// - return: Push that can add receive hooks
@@ -578,13 +578,13 @@ public class Channel {
     }
 
     /// Triggers an event to the correct event bindings created by
-    //// `channel.on("event")`.
+    //// `channel.on(event)`.
     ///
     /// - parameter event: Event to trigger
     /// - parameter payload: Payload of the event
     /// - parameter ref: Ref of the event. Defaults to empty
     /// - parameter joinRef: Ref of the join event. Defaults to nil
-    func trigger(event: String,
+    func trigger(event: ChannelEvent,
                  payload: [String: Any] = [:],
                  ref: String = "",
                  joinRef: String? = nil)
@@ -595,12 +595,6 @@ public class Channel {
                               payload: payload,
                               joinRef: joinRef ?? self.joinRef)
         trigger(message)
-    }
-
-    /// - parameter ref: The ref of the event push
-    /// - return: The event name of the reply
-    func replyEventName(_ ref: String) -> String {
-        return "chan_reply_\(ref)"
     }
 
     /// The Ref send during the join message.
