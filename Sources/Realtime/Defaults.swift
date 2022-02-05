@@ -163,7 +163,7 @@ public enum ChannelTopic {
         } else if type == "phoenix" {
             self = .heartbeat
         } else {
-            let parts = type.split(separator: ":")
+            let parts = type.replacingOccurrences(of: "realtime:", with: "").split(separator: ":")
             switch parts.count {
             case 1:
                 self = .schema(String(parts[0]))
