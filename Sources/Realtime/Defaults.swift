@@ -70,7 +70,7 @@ public enum ChannelState: String {
 /// Represents the different events that can be sent through
 /// a channel regarding a Channel's lifecycle or
 /// that can be registered to be notified of.
-public enum ChannelEvent {
+public enum ChannelEvent: RawRepresentable {
     case heartbeat
     case join
     case leave
@@ -85,7 +85,7 @@ public enum ChannelEvent {
 
     case channelReply(String)
 
-    public var raw: String {
+    public var rawValue: String {
         switch self {
         case .heartbeat: return "heartbeat"
         case .join: return "phx_join"
@@ -103,8 +103,8 @@ public enum ChannelEvent {
         }
     }
 
-    public init?(from type: String) {
-        switch type.lowercased() {
+    public init?(rawValue: String) {
+        switch rawValue.lowercased() {
         case "heartbeat": self = .heartbeat
         case "phx_join": self = .join
         case "phx_leave": self = .leave
@@ -124,22 +124,12 @@ public enum ChannelEvent {
         switch event {
         case .join, .leave, .reply, .error, .close: return true
         case .heartbeat, .all, .insert, .update, .delete, .channelReply: return false
-        // Most likely new events will be about notification
-        // not about lifecycle.
-        @unknown default: return false
         }
     }
 }
 
-extension ChannelEvent: Equatable {
-    public static func ==(lhs: ChannelEvent, rhs: ChannelEvent) -> Bool {
-        return lhs.raw == rhs.raw
-    }
-}
-
-/// Represents the different topic
-// a channel can subscribe to.
-public enum ChannelTopic {
+/// Represents the different topic a channel can subscribe to.
+public enum ChannelTopic: RawRepresentable, Equatable {
     case all
     case schema(_ schema: String)
     case table(_ table: String, schema: String)
@@ -147,7 +137,7 @@ public enum ChannelTopic {
 
     case heartbeat
 
-    public var raw: String {
+    public var rawValue: String {
         switch self {
         case .all: return "realtime:*"
         case .schema(let name): return "realtime:\(name)"
@@ -157,13 +147,13 @@ public enum ChannelTopic {
         }
     }
 
-    public init?(from type: String) {
-        if type == "realtime:*" || type == "*" {
+    public init?(rawValue: String) {
+        if rawValue == "realtime:*" || rawValue == "*" {
             self = .all
-        } else if type == "phoenix" {
+        } else if rawValue == "phoenix" {
             self = .heartbeat
         } else {
-            let parts = type.split(separator: ":")
+            let parts = rawValue.replacingOccurrences(of: "realtime:", with: "").split(separator: ":")
             switch parts.count {
             case 1:
                 self = .schema(String(parts[0]))
@@ -181,11 +171,5 @@ public enum ChannelTopic {
                 return nil
             }
         }
-    }
-}
-
-extension ChannelTopic {
-    public static func ==(lhs: ChannelTopic, rhs: ChannelTopic) -> Bool {
-        return lhs.raw == rhs.raw
     }
 }
