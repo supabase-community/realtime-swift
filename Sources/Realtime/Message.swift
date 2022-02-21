@@ -67,8 +67,8 @@ public class Message {
             let event = json["event"] as? String,
             let payload = json["payload"] as? [String: Any]
         {
-            self.topic = ChannelTopic(from: topic) ?? .all
-            self.event = ChannelEvent(from: event) ?? .all
+            self.topic = ChannelTopic(rawValue: topic) ?? .all
+            self.event = ChannelEvent(rawValue: event) ?? .all
             self.payload = payload
         } else {
             return nil

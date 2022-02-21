@@ -47,16 +47,6 @@ final class RealtimeTests: XCTestCase {
         }
     }
 
-    func testTopicSerialization() {
-        XCTAssertEqual(ChannelTopic.all.raw, "realtime:*")
-        XCTAssertEqual(ChannelTopic.schema("public").raw,
-                       "realtime:public")
-        XCTAssertEqual(ChannelTopic.table("users", schema: "public").raw,
-                       "realtime:public:users")
-        XCTAssertEqual(ChannelTopic.column("id", value: "99", table: "users", schema: "public").raw,
-                       "realtime:public:users:id=eq.99")
-    }
-
     func testChannelCreation() {
         let client = RealtimeClient(endPoint: "\(Self.supabaseUrl())/realtime/v1", params: ["apikey": Self.supabaseKey()])
         let allChanges = client.channel(.all)
@@ -118,10 +108,4 @@ final class RealtimeTests: XCTestCase {
             }
         }
     }
-
-    static var allTests = [
-        ("testConnection", testConnection),
-        ("testTopicSerialization", testTopicSerialization),
-        ("testChannelCreation", testChannelCreation),
-    ]
 }
