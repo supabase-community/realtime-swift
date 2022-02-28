@@ -22,56 +22,56 @@ import Foundation
 
 /// Data that is received from the Server.
 public class Message {
-    /// Reference number. Empty if missing
-    public let ref: String
+  /// Reference number. Empty if missing
+  public let ref: String
 
-    /// Join Reference number
-    internal let joinRef: String?
+  /// Join Reference number
+  internal let joinRef: String?
 
-    /// Message topic
-    public let topic: ChannelTopic
+  /// Message topic
+  public let topic: ChannelTopic
 
-    /// Message event
-    public let event: ChannelEvent
+  /// Message event
+  public let event: ChannelEvent
 
-    /// Message payload
-    public var payload: [String: Any]
+  /// Message payload
+  public var payload: [String: Any]
 
-    /// Convenience accessor. Equivalent to getting the status as such:
-    /// ```swift
-    /// message.payload["status"]
-    /// ```
-    public var status: String? {
-        return payload["status"] as? String
-    }
+  /// Convenience accessor. Equivalent to getting the status as such:
+  /// ```swift
+  /// message.payload["status"]
+  /// ```
+  public var status: String? {
+    return payload["status"] as? String
+  }
 
-    init(ref: String = "",
-         topic: ChannelTopic = .all,
-         event: ChannelEvent = .all,
-         payload: [String: Any] = [:],
-         joinRef: String? = nil)
+  init(
+    ref: String = "",
+    topic: ChannelTopic = .all,
+    event: ChannelEvent = .all,
+    payload: [String: Any] = [:],
+    joinRef: String? = nil
+  ) {
+    self.ref = ref
+    self.topic = topic
+    self.event = event
+    self.payload = payload
+    self.joinRef = joinRef
+  }
+
+  init?(json: [String: Any]) {
+    ref = json["ref"] as? String ?? ""
+    joinRef = json["join_ref"] as? String
+
+    if let topic = json["topic"] as? String,
+      let event = json["event"] as? String,
+      let payload = json["payload"] as? [String: Any]
     {
-        self.ref = ref
-        self.topic = topic
-        self.event = event
-        self.payload = payload
-        self.joinRef = joinRef
+      self.topic = ChannelTopic(rawValue: topic) ?? .all
+      self.event = ChannelEvent(rawValue: event) ?? .all
+      self.payload = payload
+    } else {
+      return nil
     }
-
-    init?(json: [String: Any]) {
-        ref = json["ref"] as? String ?? ""
-        joinRef = json["join_ref"] as? String
-
-        if
-            let topic = json["topic"] as? String,
-            let event = json["event"] as? String,
-            let payload = json["payload"] as? [String: Any]
-        {
-            self.topic = ChannelTopic(rawValue: topic) ?? .all
-            self.event = ChannelEvent(rawValue: event) ?? .all
-            self.payload = payload
-        } else {
-            return nil
-        }
-    }
+  }
 }

@@ -4,24 +4,24 @@
 import PackageDescription
 
 let package = Package(
-    name: "Realtime",
-    products: [
-        .library(
-            name: "Realtime",
-            targets: ["Realtime"]
-        ),
-    ],
-    dependencies: [
-        .package(url: "https://github.com/daltoniam/Starscream.git", .upToNextMajor(from: "3.0.0")),
-    ],
-    targets: [
-        .target(
-            name: "Realtime",
-            dependencies: ["Starscream"]
-        ),
-        .testTarget(
-            name: "RealtimeTests",
-            dependencies: ["Realtime"]
-        ),
-    ]
+  name: "Realtime",
+  products: [
+    .library(
+      name: "Realtime",
+      targets: ["Realtime"]
+    )
+  ],
+  dependencies: [
+    .package(url: "https://github.com/daltoniam/Starscream.git", .upToNextMajor(from: "3.0.0"))
+  ],
+  targets: [
+    .target(
+      name: "Realtime",
+      dependencies: ["Starscream"]
+    ),
+    .testTarget(
+      name: "RealtimeTests",
+      dependencies: ["Realtime"]
+    ),
+  ]
 )

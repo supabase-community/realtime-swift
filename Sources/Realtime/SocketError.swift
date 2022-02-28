@@ -1,3 +1,3 @@
 public enum SocketError: Error {
-    case abnormalClosureError
+  case abnormalClosureError
 }
