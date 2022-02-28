@@ -8,17 +8,17 @@ test-all: test-ios test-macos test-tvos
 
 test-ios:
 	xcodebuild test \
-		-scheme RealtimeTests \
+		-scheme Realtime \
 		-destination platform="$(PLATFORM_IOS)"
 
 test-macos:
 	xcodebuild test \
-		-scheme RealtimeTests \
+		-scheme Realtime \
 		-destination platform="$(PLATFORM_MACOS)"
 
 test-tvos:
 	xcodebuild test \
-		-scheme RealtimeTests \
+		-scheme Realtime \
 		-destination platform="$(PLATFORM_TVOS)"
 
 format:
