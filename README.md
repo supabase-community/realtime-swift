@@ -96,6 +96,12 @@ allUserId99Changes.subscribe()
 allUserId99Changes.unsubscribe()
 allUserId99Changes.off(.all)
 ```
+### Troubleshooting
+Can't see real time events? 
+By default the database has all tables turned off for real time access.
+Go to Database > Replication > supabase_realtime > Source
+to enable table access
+
 
 
 ## Credits
