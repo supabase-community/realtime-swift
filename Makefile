@@ -9,7 +9,7 @@ test-linux:
 		-v "$(PWD):$(PWD)" \
 		-w "$(PWD)" \
 		swift:5.5 \
-		bash -c 'make build-swift'
+		bash -c 'make test-swift'
 
 format:
 	swift format --in-place --recursive .
