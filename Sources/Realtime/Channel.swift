@@ -23,6 +23,7 @@ import Swift
 
 /// Container class of bindings to the channel
 struct Binding {
+
   // The event that the Binding is bound to
   let event: ChannelEvent
 
@@ -55,11 +56,12 @@ struct Binding {
 ///
 
 public class Channel {
-  /// The topic of the Channel. e.g. `.table("rooms", "friends")`
+
+  /// The topic of the Channel. e.g. "rooms:friends"
   public let topic: ChannelTopic
 
   /// The params sent when joining the channel
-  public var params: [String: Any] {
+  public var params: Payload {
     didSet { self.joinPush.payload = params }
   }
 
@@ -70,7 +72,7 @@ public class Channel {
   var state: ChannelState
 
   /// Collection of event bindings
-  var bindingsDel: [Binding]
+  var syncBindingsDel: SynchronizedArray<Binding>
 
   /// Tracks event binding ref counters
   var bindingRef: Int
@@ -99,27 +101,27 @@ public class Channel {
   /// - parameter params: Optional. Parameters to send when joining.
   /// - parameter socket: Socket that the channel is a part of
   init(topic: ChannelTopic, params: [String: Any] = [:], socket: RealtimeClient) {
-    state = ChannelState.closed
+    self.state = ChannelState.closed
     self.topic = topic
     self.params = params
     self.socket = socket
-    bindingsDel = []
-    bindingRef = 0
-    timeout = socket.timeout
-    joinedOnce = false
-    pushBuffer = []
-    stateChangeRefs = []
-    rejoinTimer = TimeoutTimer()
+    self.syncBindingsDel = SynchronizedArray()
+    self.bindingRef = 0
+    self.timeout = socket.timeout
+    self.joinedOnce = false
+    self.pushBuffer = []
+    self.stateChangeRefs = []
+    self.rejoinTimer = TimeoutTimer()
 
     // Setup Timer delgation
-    rejoinTimer.callback
+    self.rejoinTimer.callback
       .delegate(to: self) { (self) in
         if self.socket?.isConnected == true { self.rejoin() }
       }
 
-    rejoinTimer.timerCalculation
+    self.rejoinTimer.timerCalculation
       .delegate(to: self) { (self, tries) -> TimeInterval in
-        self.socket?.rejoinAfter(tries) ?? 5.0
+        return self.socket?.rejoinAfter(tries) ?? 5.0
       }
 
     // Respond to socket events
@@ -128,7 +130,7 @@ public class Channel {
       callback: { (self, _) in
         self.rejoinTimer.reset()
       })
-    if let ref = onErrorRef { stateChangeRefs.append(ref) }
+    if let ref = onErrorRef { self.stateChangeRefs.append(ref) }
 
     let onOpenRef = self.socket?.delegateOnOpen(
       to: self,
@@ -136,17 +138,17 @@ public class Channel {
         self.rejoinTimer.reset()
         if self.isErrored { self.rejoin() }
       })
-    if let ref = onOpenRef { stateChangeRefs.append(ref) }
+    if let ref = onOpenRef { self.stateChangeRefs.append(ref) }
 
     // Setup Push Event to be sent when joining
-    joinPush = Push(
+    self.joinPush = Push(
       channel: self,
       event: ChannelEvent.join,
       payload: self.params,
-      timeout: timeout)
+      timeout: self.timeout)
 
     /// Handle when a response is received after join()
-    joinPush.delegateReceive("ok", to: self) { (self, _) in
+    self.joinPush.delegateReceive("ok", to: self) { (self, _) in
       // Mark the Channel as joined
       self.state = ChannelState.joined
 
@@ -154,18 +156,18 @@ public class Channel {
       self.rejoinTimer.reset()
 
       // Send and buffered messages and clear the buffer
-      self.pushBuffer.forEach { $0.send() }
+      self.pushBuffer.forEach({ $0.send() })
       self.pushBuffer = []
     }
 
     // Perform if Channel errors while attempting to joi
-    joinPush.delegateReceive("error", to: self) { (self, _) in
+    self.joinPush.delegateReceive("error", to: self) { (self, _) in
       self.state = .errored
       if self.socket?.isConnected == true { self.rejoinTimer.scheduleTimeout() }
     }
 
     // Handle when the join push times out when sending after join()
-    joinPush.delegateReceive("timeout", to: self) { (self, _) in
+    self.joinPush.delegateReceive("timeout", to: self) { (self, _) in
       // log that the channel timed out
       self.socket?.logItems(
         "channel", "timeout \(self.topic) \(self.joinRef ?? "") after \(self.timeout)s")
@@ -185,7 +187,7 @@ public class Channel {
     }
 
     /// Perfom when the Channel has been closed
-    delegateOnClose(to: self) { (self, _) in
+    self.delegateOnClose(to: self) { (self, _) in
       // Reset any timer that may be on-going
       self.rejoinTimer.reset()
 
@@ -199,7 +201,7 @@ public class Channel {
     }
 
     /// Perfom when the Channel errors
-    delegateOnError(to: self) { (self, message) in
+    self.delegateOnError(to: self) { (self, message) in
       // Log that the channel received an error
       self.socket?.logItems(
         "channel", "error topic: \(self.topic) joinRef: \(self.joinRef ?? "nil") mesage: \(message)"
@@ -223,11 +225,11 @@ public class Channel {
     }
 
     // Perform when the join reply is received
-    delegateOn(ChannelEvent.reply, to: self) { (self, message) in
+    self.delegateOn(ChannelEvent.reply, to: self) { (self, message) in
       // Trigger bindings
       self.trigger(
         event: ChannelEvent.channelReply(message.ref),
-        payload: message.payload,
+        payload: message.rawPayload,
         ref: message.ref,
         joinRef: message.joinRef)
     }
@@ -242,8 +244,8 @@ public class Channel {
   ///
   /// - parameter msg: The Message received by the client from the server
   /// - return: Must return the message, modified or unmodified
-  public var onMessage: (_ message: Message) -> Message = { message in
-    message
+  public var onMessage: (_ message: Message) -> Message = { (message) in
+    return message
   }
 
   /// Joins the channel
@@ -251,7 +253,7 @@ public class Channel {
   /// - parameter timeout: Optional. Defaults to Channel's timeout
   /// - return: Push event
   @discardableResult
-  public func subscribe(timeout: TimeInterval? = nil) -> Push {
+  public func join(timeout: TimeInterval? = nil) -> Push {
     guard !joinedOnce else {
       fatalError(
         "tried to join multiple times. 'join' "
@@ -261,8 +263,8 @@ public class Channel {
     // Join the Channel
     if let safeTimeout = timeout { self.timeout = safeTimeout }
 
-    joinedOnce = true
-    rejoin()
+    self.joinedOnce = true
+    self.rejoin()
     return joinPush
   }
 
@@ -280,7 +282,7 @@ public class Channel {
   /// - return: Ref counter of the subscription. See `func off()`
   @discardableResult
   public func onClose(_ callback: @escaping ((Message) -> Void)) -> Int {
-    return on(ChannelEvent.close, callback: callback)
+    return self.on(ChannelEvent.close, callback: callback)
   }
 
   /// Hook into when the Channel is closed. Automatically handles retain
@@ -301,7 +303,7 @@ public class Channel {
     to owner: Target,
     callback: @escaping ((Target, Message) -> Void)
   ) -> Int {
-    return delegateOn(ChannelEvent.close, to: owner, callback: callback)
+    return self.delegateOn(ChannelEvent.close, to: owner, callback: callback)
   }
 
   /// Hook into when the Channel receives an Error. Does not handle retain
@@ -319,7 +321,7 @@ public class Channel {
   /// - return: Ref counter of the subscription. See `func off()`
   @discardableResult
   public func onError(_ callback: @escaping ((_ message: Message) -> Void)) -> Int {
-    return on(ChannelEvent.error, callback: callback)
+    return self.on(ChannelEvent.error, callback: callback)
   }
 
   /// Hook into when the Channel receives an Error. Automatically handles
@@ -340,7 +342,7 @@ public class Channel {
     to owner: Target,
     callback: @escaping ((Target, Message) -> Void)
   ) -> Int {
-    return delegateOn(ChannelEvent.error, to: owner, callback: callback)
+    return self.delegateOn(ChannelEvent.error, to: owner, callback: callback)
   }
 
   /// Subscribes on channel events. Does not handle retain cycles. Use
@@ -352,13 +354,13 @@ public class Channel {
   /// Example:
   ///
   ///     let channel = socket.channel("topic")
-  ///     let ref1 = channel.on(.all) { [weak self] (message) in
+  ///     let ref1 = channel.on("event") { [weak self] (message) in
   ///         self?.print("do stuff")
   ///     }
-  ///     let ref2 = channel.on(.all) { [weak self] (message) in
+  ///     let ref2 = channel.on("event") { [weak self] (message) in
   ///         self?.print("do other stuff")
   ///     }
-  ///     channel.off(.all, ref1)
+  ///     channel.off("event", ref1)
   ///
   /// Since unsubscription of ref1, "do stuff" won't print, but "do other
   /// stuff" will keep on printing on the "event"
@@ -371,7 +373,7 @@ public class Channel {
     var delegated = Delegated<Message, Void>()
     delegated.manuallyDelegate(with: callback)
 
-    return on(event, delegated: delegated)
+    return self.on(event, delegated: delegated)
   }
 
   /// Subscribes on channel events. Automatically handles retain cycles. Use
@@ -383,16 +385,16 @@ public class Channel {
   /// Example:
   ///
   ///     let channel = socket.channel("topic")
-  ///     let ref1 = channel.delegateOn(.all, to: self) { (self, message) in
+  ///     let ref1 = channel.delegateOn("event", to: self) { (self, message) in
   ///         self?.print("do stuff")
   ///     }
-  ///     let ref2 = channel.delegateOn(.all, to: self) { (self, message) in
+  ///     let ref2 = channel.delegateOn("event", to: self) { (self, message) in
   ///         self?.print("do other stuff")
   ///     }
-  ///     channel.off(.all, ref1)
+  ///     channel.off("event", ref1)
   ///
   /// Since unsubscription of ref1, "do stuff" won't print, but "do other
-  /// stuff" will keep on printing on all "event" (*).
+  /// stuff" will keep on printing on the "event"
   ///
   /// - parameter event: Event to receive
   /// - parameter owner: Class registering the callback. Usually `self`
@@ -407,16 +409,16 @@ public class Channel {
     var delegated = Delegated<Message, Void>()
     delegated.delegate(to: owner, with: callback)
 
-    return on(event, delegated: delegated)
+    return self.on(event, delegated: delegated)
   }
 
   /// Shared method between `on` and `manualOn`
   @discardableResult
   private func on(_ event: ChannelEvent, delegated: Delegated<Message, Void>) -> Int {
     let ref = bindingRef
-    bindingRef = ref + 1
+    self.bindingRef = ref + 1
 
-    bindingsDel.append(Binding(event: event, ref: ref, callback: delegated))
+    self.syncBindingsDel.append(Binding(event: event, ref: ref, callback: delegated))
     return ref
   }
 
@@ -427,20 +429,20 @@ public class Channel {
   /// Example:
   ///
   ///     let channel = socket.channel("topic")
-  ///     let ref1 = channel.on(.insert) { _ in print("ref1 event" }
-  ///     let ref2 = channel.on(.insert) { _ in print("ref2 event" }
-  ///     let ref3 = channel.on(.update) { _ in print("ref3 other" }
-  ///     let ref4 = channel.on(.update) { _ in print("ref4 other" }
-  ///     channel.off(.insert, ref1)
-  ///     channel.off(.update)
+  ///     let ref1 = channel.on("event") { _ in print("ref1 event" }
+  ///     let ref2 = channel.on("event") { _ in print("ref2 event" }
+  ///     let ref3 = channel.on("other_event") { _ in print("ref3 other" }
+  ///     let ref4 = channel.on("other_event") { _ in print("ref4 other" }
+  ///     channel.off("event", ref1)
+  ///     channel.off("other_event")
   ///
   /// After this, only "ref2 event" will be printed if the channel receives
-  /// "insert" and nothing is printed if the channel receives "update".
+  /// "event" and nothing is printed if the channel receives "other_event".
   ///
   /// - parameter event: Event to unsubscribe from
   /// - paramter ref: Ref counter returned when subscribing. Can be omitted
   public func off(_ event: ChannelEvent, ref: Int? = nil) {
-    bindingsDel.removeAll { (bind) -> Bool in
+    self.syncBindingsDel.removeAll { (bind) -> Bool in
       bind.event == event && (ref == nil || ref == bind.ref)
     }
   }
@@ -450,7 +452,7 @@ public class Channel {
   /// Example:
   ///
   ///     channel
-  ///         .push(.update, payload: ["message": "hello")
+  ///         .push("event", payload: ["message": "hello")
   ///         .receive("ok") { _ in { print("message sent") }
   ///
   /// - parameter event: Event to push
@@ -459,12 +461,12 @@ public class Channel {
   @discardableResult
   public func push(
     _ event: ChannelEvent,
-    payload: [String: Any],
+    payload: Payload,
     timeout: TimeInterval = Defaults.timeoutInterval
   ) -> Push {
     guard joinedOnce else {
       fatalError(
-        "Tried to push \(event) to \(topic) before joining. Use channel.join() before pushing events"
+        "Tried to push \(event) to \(self.topic) before joining. Use channel.join() before pushing events"
       )
     }
 
@@ -495,21 +497,21 @@ public class Channel {
   ///
   /// Example:
   ////
-  ///     channel.unsubscribe().receive("ok") { _ in { print("left") }
+  ///     channel.leave().receive("ok") { _ in { print("left") }
   ///
   /// - parameter timeout: Optional timeout
   /// - return: Push that can add receive hooks
   @discardableResult
-  public func unsubscribe(timeout: TimeInterval = Defaults.timeoutInterval) -> Push {
+  public func leave(timeout: TimeInterval = Defaults.timeoutInterval) -> Push {
     // If attempting a rejoin during a leave, then reset, cancelling the rejoin
-    rejoinTimer.reset()
+    self.rejoinTimer.reset()
 
     // Now set the state to leaving
-    state = .leaving
+    self.state = .leaving
 
     /// Delegated callback for a successful or a failed channel leave
     var onCloseDelegate = Delegated<Message, Void>()
-    onCloseDelegate.delegate(to: self) { (self, _) in
+    onCloseDelegate.delegate(to: self) { (self, message) in
       self.socket?.logItems("channel", "leave \(self.topic)")
 
       // Triggers onClose() hooks
@@ -544,47 +546,45 @@ public class Channel {
   /// - parameter ref: The reference of the message
   /// - return: Must return the payload, modified or unmodified
   public func onMessage(callback: @escaping (Message) -> Message) {
-    onMessage = callback
+    self.onMessage = callback
   }
 
-  // ----------------------------------------------------------------------
-
+  //----------------------------------------------------------------------
   // MARK: - Internal
-
-  // ----------------------------------------------------------------------
+  //----------------------------------------------------------------------
   /// Checks if an event received by the Socket belongs to this Channel
   func isMember(_ message: Message) -> Bool {
     // Return false if the message's topic does not match the Channel's topic
-    guard message.topic == topic else { return false }
+    guard message.topic == self.topic else { return false }
 
     guard
       let safeJoinRef = message.joinRef,
-      safeJoinRef != joinRef,
+      safeJoinRef != self.joinRef,
       ChannelEvent.isLifecyleEvent(message.event)
     else { return true }
 
-    socket?.logItems(
-      "channel", "dropping outdated message", message.topic, message.event, message.payload,
+    self.socket?.logItems(
+      "channel", "dropping outdated message", message.topic, message.event, message.rawPayload,
       safeJoinRef)
     return false
   }
 
   /// Sends the payload to join the Channel
   func sendJoin(_ timeout: TimeInterval) {
-    state = ChannelState.joining
-    joinPush.resend(timeout)
+    self.state = ChannelState.joining
+    self.joinPush.resend(timeout)
   }
 
   /// Rejoins the channel
   func rejoin(_ timeout: TimeInterval? = nil) {
     // Do not attempt to rejoin if the channel is in the process of leaving
-    guard !isLeaving else { return }
+    guard !self.isLeaving else { return }
 
     // Leave potentially duplicate channels
-    socket?.leaveOpenTopic(topic: topic)
+    self.socket?.leaveOpenTopic(topic: self.topic)
 
     // Send the joinPush
-    sendJoin(timeout ?? self.timeout)
+    self.sendJoin(timeout ?? self.timeout)
   }
 
   /// Triggers an event to the correct event bindings created by
@@ -592,15 +592,15 @@ public class Channel {
   ///
   /// - parameter message: Message to pass to the event bindings
   func trigger(_ message: Message) {
-    let handledMessage = onMessage(message)
+    let handledMessage = self.onMessage(message)
 
-    bindingsDel
-      .filter { $0.event == message.event }
-      .forEach { $0.callback.call(handledMessage) }
+    self.syncBindingsDel
+      .filter({ return $0.event == message.event })
+      .forEach({ $0.callback.call(handledMessage) })
   }
 
   /// Triggers an event to the correct event bindings created by
-  //// `channel.on(event)`.
+  //// `channel.on("event")`.
   ///
   /// - parameter event: Event to trigger
   /// - parameter payload: Payload of the event
@@ -608,37 +608,36 @@ public class Channel {
   /// - parameter joinRef: Ref of the join event. Defaults to nil
   func trigger(
     event: ChannelEvent,
-    payload: [String: Any] = [:],
+    payload: Payload = [:],
     ref: String = "",
     joinRef: String? = nil
   ) {
     let message = Message(
       ref: ref,
-      topic: topic,
+      topic: self.topic,
       event: event,
       payload: payload,
       joinRef: joinRef ?? self.joinRef)
-    trigger(message)
+    self.trigger(message)
   }
 
   /// The Ref send during the join message.
   var joinRef: String? {
-    return joinPush.ref
+    return self.joinPush.ref
   }
 
   /// - return: True if the Channel can push messages, meaning the socket
   ///           is connected and the channel is joined
   var canPush: Bool {
-    return socket?.isConnected == true && isJoined
+    return self.socket?.isConnected == true && self.isJoined
   }
 }
 
-// ----------------------------------------------------------------------
-
+//----------------------------------------------------------------------
 // MARK: - Public API
-
-// ----------------------------------------------------------------------
+//----------------------------------------------------------------------
 extension Channel {
+
   /// - return: True if the Channel has been closed
   public var isClosed: Bool {
     return state == .closed
@@ -663,4 +662,5 @@ extension Channel {
   public var isLeaving: Bool {
     return state == .leaving
   }
+
 }

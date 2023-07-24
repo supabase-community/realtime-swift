@@ -20,44 +20,53 @@
 
 import Foundation
 
-/// A collection of default values and behaviors used accross the Client
-public enum Defaults {
+/// A collection of default values and behaviors used across the Client
+public class Defaults {
+
   /// Default timeout when sending messages
   public static let timeoutInterval: TimeInterval = 10.0
 
   /// Default interval to send heartbeats on
   public static let heartbeatInterval: TimeInterval = 30.0
 
+  /// Default maximum amount of time which the system may delay heartbeat events in order to minimize power usage
+  public static let heartbeatLeeway: DispatchTimeInterval = .milliseconds(10)
+
   /// Default reconnect algorithm for the socket
   public static let reconnectSteppedBackOff: (Int) -> TimeInterval = { tries in
-    tries > 9 ? 5.0 : [0.01, 0.05, 0.1, 0.15, 0.2, 0.25, 0.5, 1.0, 2.0][tries - 1]
+    return tries > 9 ? 5.0 : [0.01, 0.05, 0.1, 0.15, 0.2, 0.25, 0.5, 1.0, 2.0][tries - 1]
   }
 
   /** Default rejoin algorithm for individual channels */
   public static let rejoinSteppedBackOff: (Int) -> TimeInterval = { tries in
-    tries > 3 ? 10 : [1, 2, 5][tries - 1]
+    return tries > 3 ? 10 : [1, 2, 5][tries - 1]
   }
 
+  public static let vsn = "2.0.0"
+
   /// Default encode function, utilizing JSONSerialization.data
-  public static let encode: ([String: Any]) -> Data = { json in
-    try! JSONSerialization
+  public static let encode: (Any) -> Data = { json in
+    return
+      try! JSONSerialization
       .data(
         withJSONObject: json,
         options: JSONSerialization.WritingOptions())
   }
 
   /// Default decode function, utilizing JSONSerialization.jsonObject
-  public static let decode: (Data) -> [String: Any]? = { data in
+  public static let decode: (Data) -> Any? = { data in
     guard
       let json =
         try? JSONSerialization
         .jsonObject(
           with: data,
           options: JSONSerialization.ReadingOptions())
-        as? [String: Any]
     else { return nil }
     return json
   }
+
+  public static let heartbeatQueue: DispatchQueue = DispatchQueue(
+    label: "com.phoenix.socket.heartbeat")
 }
 
 /// Represents the multiple states that a Channel can be in
@@ -88,6 +97,9 @@ public enum ChannelEvent: RawRepresentable {
 
   case channelReply(String)
 
+  case presenceState
+  case presenceDiff
+
   public var rawValue: String {
     switch self {
     case .heartbeat: return "heartbeat"
@@ -103,6 +115,8 @@ public enum ChannelEvent: RawRepresentable {
     case .delete: return "delete"
 
     case .channelReply(let reference): return "chan_reply_\(reference)"
+    case .presenceState: return "presence_state"
+    case .presenceDiff: return "presence_diff"
     }
   }
 
@@ -118,6 +132,8 @@ public enum ChannelEvent: RawRepresentable {
     case "insert": self = .insert
     case "update": self = .update
     case "delete": self = .delete
+    case "presence_state": self = .presenceState
+    case "presence_diff": self = .presenceDiff
     default: return nil
     }
   }
@@ -125,7 +141,7 @@ public enum ChannelEvent: RawRepresentable {
   static func isLifecyleEvent(_ event: ChannelEvent) -> Bool {
     switch event {
     case .join, .leave, .reply, .error, .close: return true
-    case .heartbeat, .all, .insert, .update, .delete, .channelReply: return false
+    case .heartbeat, .all, .insert, .update, .delete, .channelReply, .presenceState, .presenceDiff: return false
     }
   }
 }

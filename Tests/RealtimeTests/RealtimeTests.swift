@@ -26,7 +26,7 @@ final class RealtimeTests: XCTestCase {
       "INTEGRATION_TESTS not defined")
 
     let socket = RealtimeClient(
-      endPoint: "\(supabaseUrl)/realtime/v1", params: ["apikey": supabaseKey])
+      "\(supabaseUrl)/realtime/v1", params: ["apikey": supabaseKey])
 
     let e = expectation(description: "testConnection")
     socket.onOpen {
@@ -36,7 +36,7 @@ final class RealtimeTests: XCTestCase {
       }
     }
 
-    socket.onError { error in
+    socket.onError { error, _ in
       XCTFail(error.localizedDescription)
     }
 
@@ -60,29 +60,29 @@ final class RealtimeTests: XCTestCase {
       "INTEGRATION_TESTS not defined")
 
     let client = RealtimeClient(
-      endPoint: "\(supabaseUrl)/realtime/v1", params: ["apikey": supabaseKey])
+      "\(supabaseUrl)/realtime/v1", params: ["apikey": supabaseKey])
     let allChanges = client.channel(.all)
     allChanges.on(.all) { message in
       print(message)
     }
-    allChanges.subscribe()
-    allChanges.unsubscribe()
+    allChanges.join()
+    allChanges.leave()
     allChanges.off(.all)
 
     let allPublicInsertChanges = client.channel(.schema("public"))
     allPublicInsertChanges.on(.insert) { message in
       print(message)
     }
-    allPublicInsertChanges.subscribe()
-    allPublicInsertChanges.unsubscribe()
+    allPublicInsertChanges.join()
+    allPublicInsertChanges.leave()
     allPublicInsertChanges.off(.insert)
 
     let allUsersUpdateChanges = client.channel(.table("users", schema: "public"))
     allUsersUpdateChanges.on(.update) { message in
       print(message)
     }
-    allUsersUpdateChanges.subscribe()
-    allUsersUpdateChanges.unsubscribe()
+    allUsersUpdateChanges.join()
+    allUsersUpdateChanges.leave()
     allUsersUpdateChanges.off(.update)
 
     let allUserId99Changes = client.channel(
@@ -90,8 +90,8 @@ final class RealtimeTests: XCTestCase {
     allUserId99Changes.on(.all) { message in
       print(message)
     }
-    allUserId99Changes.subscribe()
-    allUserId99Changes.unsubscribe()
+    allUserId99Changes.join()
+    allUserId99Changes.leave()
     allUserId99Changes.off(.all)
 
     XCTAssertEqual(client.isConnected, false)
@@ -104,7 +104,7 @@ final class RealtimeTests: XCTestCase {
       }
     }
 
-    client.onError { error in
+    client.onError { error, _ in
       XCTFail(error.localizedDescription)
     }
 
