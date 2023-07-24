@@ -25,10 +25,11 @@ import Foundation
 /// runs on it's own Queue so that it does not interfere with the main
 /// queue but guarantees thread safety.
 class HeartbeatTimer {
+  // ----------------------------------------------------------------------
 
-  //----------------------------------------------------------------------
   // MARK: - Dependencies
-  //----------------------------------------------------------------------
+
+  // ----------------------------------------------------------------------
   // The interval to wait before firing the Timer
   let timeInterval: TimeInterval
 
@@ -41,22 +42,24 @@ class HeartbeatTimer {
   // UUID which specifies the Timer instance. Verifies that timers are different
   let uuid: String = UUID().uuidString
 
-  //----------------------------------------------------------------------
+  // ----------------------------------------------------------------------
+
   // MARK: - Properties
-  //----------------------------------------------------------------------
+
+  // ----------------------------------------------------------------------
   // The underlying, cancelable, resettable, timer.
-  private var temporaryTimer: DispatchSourceTimer? = nil
+  private var temporaryTimer: DispatchSourceTimer?
   // The event handler that is called by the timer when it fires.
-  private var temporaryEventHandler: (() -> Void)? = nil
+  private var temporaryEventHandler: (() -> Void)?
 
   /**
-   Create a new HeartbeatTimer
+     Create a new HeartbeatTimer
 
-   - Parameters:
-     - timeInterval: Interval to fire the timer. Repeats
-     - queue: Queue to schedule the timer on
-     - leeway: The maximum amount of time which the system may delay the delivery of the timer events
-   */
+     - Parameters:
+       - timeInterval: Interval to fire the timer. Repeats
+       - queue: Queue to schedule the timer on
+       - leeway: The maximum amount of time which the system may delay the delivery of the timer events
+     */
   init(
     timeInterval: TimeInterval, queue: DispatchQueue = Defaults.heartbeatQueue,
     leeway: DispatchTimeInterval = Defaults.heartbeatLeeway
@@ -67,10 +70,10 @@ class HeartbeatTimer {
   }
 
   /**
-   Create a new HeartbeatTimer
+     Create a new HeartbeatTimer
 
-   - Parameter timeInterval: Interval to fire the timer. Repeats
-   */
+     - Parameter timeInterval: Interval to fire the timer. Repeats
+     */
   convenience init(timeInterval: TimeInterval) {
     self.init(timeInterval: timeInterval, queue: Defaults.heartbeatQueue)
   }
@@ -86,7 +89,8 @@ class HeartbeatTimer {
       timer.schedule(
         deadline: DispatchTime.now() + self.timeInterval,
         repeating: self.timeInterval,
-        leeway: self.leeway)
+        leeway: self.leeway
+      )
 
       // Start the timer
       timer.resume()
@@ -105,20 +109,20 @@ class HeartbeatTimer {
   }
 
   /**
-   True if the Timer exists and has not been cancelled. False otherwise
-   */
+     True if the Timer exists and has not been cancelled. False otherwise
+     */
   var isValid: Bool {
-    guard let timer = self.temporaryTimer else { return false }
+    guard let timer = temporaryTimer else { return false }
     return !timer.isCancelled
   }
 
   /**
-   Calls the Timer's event handler immediately. This method
-   is primarily used in tests (not ideal)
-   */
+     Calls the Timer's event handler immediately. This method
+     is primarily used in tests (not ideal)
+     */
   func fire() {
     guard isValid else { return }
-    self.temporaryEventHandler?()
+    temporaryEventHandler?()
   }
 }
 

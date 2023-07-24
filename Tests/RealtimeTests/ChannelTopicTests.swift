@@ -3,7 +3,6 @@ import XCTest
 @testable import Realtime
 
 final class ChannelTopicTests: XCTestCase {
-
   func testRawValue() {
     XCTAssertEqual(ChannelTopic.all, ChannelTopic(rawValue: "realtime:*"))
     XCTAssertEqual(ChannelTopic.all, ChannelTopic(rawValue: "*"))
@@ -13,7 +12,8 @@ final class ChannelTopicTests: XCTestCase {
     )
     XCTAssertEqual(
       ChannelTopic.column("email", value: "mail@supabase.io", table: "users", schema: "public"),
-      ChannelTopic(rawValue: "realtime:public:users:email=eq.mail@supabase.io"))
+      ChannelTopic(rawValue: "realtime:public:users:email=eq.mail@supabase.io")
+    )
     XCTAssertEqual(ChannelTopic.heartbeat, ChannelTopic(rawValue: "phoenix"))
   }
 }

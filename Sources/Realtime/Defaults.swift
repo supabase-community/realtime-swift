@@ -21,8 +21,7 @@
 import Foundation
 
 /// A collection of default values and behaviors used across the Client
-public class Defaults {
-
+public enum Defaults {
   /// Default timeout when sending messages
   public static let timeoutInterval: TimeInterval = 10.0
 
@@ -34,23 +33,23 @@ public class Defaults {
 
   /// Default reconnect algorithm for the socket
   public static let reconnectSteppedBackOff: (Int) -> TimeInterval = { tries in
-    return tries > 9 ? 5.0 : [0.01, 0.05, 0.1, 0.15, 0.2, 0.25, 0.5, 1.0, 2.0][tries - 1]
+    tries > 9 ? 5.0 : [0.01, 0.05, 0.1, 0.15, 0.2, 0.25, 0.5, 1.0, 2.0][tries - 1]
   }
 
   /** Default rejoin algorithm for individual channels */
   public static let rejoinSteppedBackOff: (Int) -> TimeInterval = { tries in
-    return tries > 3 ? 10 : [1, 2, 5][tries - 1]
+    tries > 3 ? 10 : [1, 2, 5][tries - 1]
   }
 
   public static let vsn = "2.0.0"
 
   /// Default encode function, utilizing JSONSerialization.data
   public static let encode: (Any) -> Data = { json in
-    return
-      try! JSONSerialization
+    try! JSONSerialization
       .data(
         withJSONObject: json,
-        options: JSONSerialization.WritingOptions())
+        options: JSONSerialization.WritingOptions()
+      )
   }
 
   /// Default decode function, utilizing JSONSerialization.jsonObject
@@ -60,12 +59,13 @@ public class Defaults {
         try? JSONSerialization
         .jsonObject(
           with: data,
-          options: JSONSerialization.ReadingOptions())
+          options: JSONSerialization.ReadingOptions()
+        )
     else { return nil }
     return json
   }
 
-  public static let heartbeatQueue: DispatchQueue = DispatchQueue(
+  public static let heartbeatQueue: DispatchQueue = .init(
     label: "com.phoenix.socket.heartbeat")
 }
 
@@ -114,7 +114,7 @@ public enum ChannelEvent: RawRepresentable {
     case .update: return "update"
     case .delete: return "delete"
 
-    case .channelReply(let reference): return "chan_reply_\(reference)"
+    case let .channelReply(reference): return "chan_reply_\(reference)"
     case .presenceState: return "presence_state"
     case .presenceDiff: return "presence_diff"
     }
@@ -141,7 +141,8 @@ public enum ChannelEvent: RawRepresentable {
   static func isLifecyleEvent(_ event: ChannelEvent) -> Bool {
     switch event {
     case .join, .leave, .reply, .error, .close: return true
-    case .heartbeat, .all, .insert, .update, .delete, .channelReply, .presenceState, .presenceDiff: return false
+    case .heartbeat, .all, .insert, .update, .delete, .channelReply, .presenceState, .presenceDiff:
+      return false
     }
   }
 }
@@ -158,9 +159,9 @@ public enum ChannelTopic: RawRepresentable, Equatable {
   public var rawValue: String {
     switch self {
     case .all: return "realtime:*"
-    case .schema(let name): return "realtime:\(name)"
-    case .table(let tableName, let schema): return "realtime:\(schema):\(tableName)"
-    case .column(let columnName, let value, let table, let schema):
+    case let .schema(name): return "realtime:\(name)"
+    case let .table(tableName, schema): return "realtime:\(schema):\(tableName)"
+    case let .column(columnName, value, table, schema):
       return "realtime:\(schema):\(table):\(columnName)=eq.\(value)"
     case .heartbeat: return "phoenix"
     }
@@ -185,7 +186,8 @@ public enum ChannelTopic: RawRepresentable, Equatable {
         {
           self = .column(
             String(condition[0]), value: String(condition[1].dropFirst(3)), table: String(parts[1]),
-            schema: String(parts[0]))
+            schema: String(parts[0])
+          )
         } else {
           return nil
         }

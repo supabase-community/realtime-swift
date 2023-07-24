@@ -23,10 +23,12 @@ final class RealtimeTests: XCTestCase {
   func testConnection() throws {
     try XCTSkipIf(
       ProcessInfo.processInfo.environment["INTEGRATION_TESTS"] == nil,
-      "INTEGRATION_TESTS not defined")
+      "INTEGRATION_TESTS not defined"
+    )
 
     let socket = RealtimeClient(
-      "\(supabaseUrl)/realtime/v1", params: ["apikey": supabaseKey])
+      "\(supabaseUrl)/realtime/v1", params: ["apikey": supabaseKey]
+    )
 
     let e = expectation(description: "testConnection")
     socket.onOpen {
@@ -57,10 +59,12 @@ final class RealtimeTests: XCTestCase {
   func testChannelCreation() throws {
     try XCTSkipIf(
       ProcessInfo.processInfo.environment["INTEGRATION_TESTS"] == nil,
-      "INTEGRATION_TESTS not defined")
+      "INTEGRATION_TESTS not defined"
+    )
 
     let client = RealtimeClient(
-      "\(supabaseUrl)/realtime/v1", params: ["apikey": supabaseKey])
+      "\(supabaseUrl)/realtime/v1", params: ["apikey": supabaseKey]
+    )
     let allChanges = client.channel(.all)
     allChanges.on(.all) { message in
       print(message)
@@ -96,7 +100,7 @@ final class RealtimeTests: XCTestCase {
 
     XCTAssertEqual(client.isConnected, false)
 
-    let e = expectation(description: self.name)
+    let e = expectation(description: name)
     client.onOpen {
       XCTAssertEqual(client.isConnected, true)
       DispatchQueue.main.asyncAfter(deadline: .now() + 1) {

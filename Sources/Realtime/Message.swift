@@ -22,7 +22,6 @@ import Foundation
 
 /// Data that is received from the Server.
 public class Message {
-
   /// Reference number. Empty if missing
   public let ref: String
 
@@ -64,23 +63,22 @@ public class Message {
     self.ref = ref
     self.topic = topic
     self.event = event
-    self.rawPayload = payload
+    rawPayload = payload
     self.joinRef = joinRef
   }
 
   init?(json: [Any?]) {
     guard json.count > 4 else { return nil }
-    self.joinRef = json[0] as? String
-    self.ref = json[1] as? String ?? ""
+    joinRef = json[0] as? String
+    ref = json[1] as? String ?? ""
 
     if let topic = (json[2] as? String).flatMap(ChannelTopic.init(rawValue:)),
       let event = (json[3] as? String).flatMap(ChannelEvent.init(rawValue:)),
       let payload = json[4] as? Payload
     {
-
       self.topic = topic
       self.event = event
-      self.rawPayload = payload
+      rawPayload = payload
     } else {
       return nil
     }
