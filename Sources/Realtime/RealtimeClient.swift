@@ -192,6 +192,21 @@ public class RealtimeClient: TransportDelegate {
       vsn: vsn
     )
   }
+    
+  @available(*, deprecated, renamed: "init(_:params:vsn:)")
+  public convenience init(
+    endPoint: String,
+    params: Payload? = nil,
+    vsn: String = Defaults.vsn
+  ) {
+    self.init(
+      endPoint: endPoint,
+      transport: { url in URLSessionTransport(url: url) },
+      paramsClosure: { params },
+      vsn: vsn
+    )
+  }
+    
 
   public init(
     endPoint: String,
