@@ -45,7 +45,8 @@ public enum Defaults {
 
   /// Default encode function, utilizing JSONSerialization.data
   public static let encode: (Any) -> Data = { json in
-    try! JSONSerialization
+    assert(JSONSerialization.isValidJSONObject(json), "Invalid JSON object")
+    return try! JSONSerialization
       .data(
         withJSONObject: json,
         options: JSONSerialization.WritingOptions()
