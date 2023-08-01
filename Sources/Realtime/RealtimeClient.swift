@@ -167,7 +167,7 @@ public class RealtimeClient: TransportDelegate {
   // ----------------------------------------------------------------------
   @available(macOS 10.15, iOS 13, watchOS 6, tvOS 13, *)
   public convenience init(
-    _ endPoint: String,
+    endPoint: String,
     params: Payload? = nil,
     vsn: String = Defaults.vsn
   ) {
@@ -181,7 +181,7 @@ public class RealtimeClient: TransportDelegate {
 
   @available(macOS 10.15, iOS 13, watchOS 6, tvOS 13, *)
   public convenience init(
-    _ endPoint: String,
+    endPoint: String,
     paramsClosure: PayloadClosure?,
     vsn: String = Defaults.vsn
   ) {
