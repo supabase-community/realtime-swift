@@ -645,7 +645,7 @@ public class RealtimeClient: TransportDelegate {
     joinRef: String? = nil
   ) {
     let callback: (() throws -> Void) = {
-      let body: [Any?] = [joinRef, ref, topic, event, payload]
+      let body: [Any?] = [joinRef, ref, topic.rawValue, event.rawValue, payload]
       let data = self.encode(body)
 
       self.logItems("push", "Sending \(String(data: data, encoding: String.Encoding.utf8) ?? "")")
