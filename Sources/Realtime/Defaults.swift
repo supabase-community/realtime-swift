@@ -84,6 +84,11 @@ public enum ChannelState: String {
 /// a channel regarding a Channel's lifecycle or
 /// that can be registered to be notified of.
 public enum ChannelEvent: RawRepresentable {
+  public enum Presence: String {
+    case state
+    case diff
+  }
+
   case heartbeat
   case join
   case leave
@@ -98,8 +103,7 @@ public enum ChannelEvent: RawRepresentable {
 
   case channelReply(String)
 
-  case presenceState
-  case presenceDiff
+  case presence(Presence)
 
   public var rawValue: String {
     switch self {
@@ -116,8 +120,7 @@ public enum ChannelEvent: RawRepresentable {
     case .delete: return "delete"
 
     case let .channelReply(reference): return "chan_reply_\(reference)"
-    case .presenceState: return "presence_state"
-    case .presenceDiff: return "presence_diff"
+    case let .presence(presence): return "presence_\(presence.rawValue)"
     }
   }
 
@@ -133,8 +136,8 @@ public enum ChannelEvent: RawRepresentable {
     case "insert": self = .insert
     case "update": self = .update
     case "delete": self = .delete
-    case "presence_state": self = .presenceState
-    case "presence_diff": self = .presenceDiff
+    case "presence_state": self = .presence(.state)
+    case "presence_diff": self = .presence(.diff)
     default: return nil
     }
   }
@@ -142,7 +145,7 @@ public enum ChannelEvent: RawRepresentable {
   static func isLifecyleEvent(_ event: ChannelEvent) -> Bool {
     switch event {
     case .join, .leave, .reply, .error, .close: return true
-    case .heartbeat, .all, .insert, .update, .delete, .channelReply, .presenceState, .presenceDiff:
+    case .heartbeat, .all, .insert, .update, .delete, .channelReply, .presence(.state), .presence(.diff):
       return false
     }
   }
