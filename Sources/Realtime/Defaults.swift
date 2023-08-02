@@ -104,7 +104,11 @@ public enum ChannelEvent: RawRepresentable {
 
   case channelReply(String)
 
-  case presence(Presence)
+  case broadcast
+  
+  case presence
+  case presenceState
+  case presenceDiff
 
   public var rawValue: String {
     switch self {
@@ -121,7 +125,12 @@ public enum ChannelEvent: RawRepresentable {
     case .delete: return "delete"
 
     case let .channelReply(reference): return "chan_reply_\(reference)"
-    case let .presence(presence): return "presence_\(presence.rawValue)"
+      
+    case .broadcast: return "broadcast"
+      
+    case .presence: return "presence"
+    case .presenceState: return "presence_state"
+    case .presenceDiff: return "presence_diff"
     }
   }
 
@@ -137,8 +146,10 @@ public enum ChannelEvent: RawRepresentable {
     case "insert": self = .insert
     case "update": self = .update
     case "delete": self = .delete
-    case "presence_state": self = .presence(.state)
-    case "presence_diff": self = .presence(.diff)
+    case "broadcast": self = .broadcast
+    case "presence": self = .presence
+    case "presence_state": self = .presenceState
+    case "presence_diff": self = .presenceDiff
     default: return nil
     }
   }

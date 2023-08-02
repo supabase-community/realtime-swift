@@ -694,3 +694,44 @@ extension Channel {
     return state == .leaving
   }
 }
+
+// ----------------------------------------------------------------------
+
+// MARK: - Broadcast API
+
+// ----------------------------------------------------------------------
+extension Channel {
+    @discardableResult
+    public func broadcast(event: String, payload: Payload) -> Push {
+        self.push(.broadcast, payload: [
+            "type": "broadcast",
+            "event": event,
+            "payload": payload
+        ])
+    }
+}
+// ----------------------------------------------------------------------
+
+// MARK: - Presence API
+
+// ----------------------------------------------------------------------
+
+extension Channel {
+    @discardableResult
+    public func track(payload: Payload) -> Push {
+        self.push(.presence, payload: [
+            "type": "presence",
+            "event": "track",
+            "payload": payload
+        ])
+    }
+    
+    @discardableResult
+    public func untrack() -> Push {
+        self.push(.presence, payload: [
+            "type": "presence",
+            "event": "untrack"
+        ])
+    }
+    
+}
