@@ -96,7 +96,23 @@ allUserId99Changes.subscribe()
 allUserId99Changes.unsubscribe()
 allUserId99Changes.off(.all)
 ```
+### Presence
 
+Presence can be used to share state between clients.
+
+* Listen to presence `sync` events:
+
+```swift
+let channel = client.channel(.table("channel_id", schema: "someChannel"), options: .init(presenceKey: "user_uuid"))
+let presence = Presence(channel: channel)
+
+presence.onSync {
+    print("presence sync", presence?.state, presence?.list())
+}
+
+channel.join()
+// ...
+```
 
 ## Credits
 
