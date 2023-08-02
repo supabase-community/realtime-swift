@@ -772,7 +772,7 @@ extension Channel {
     ///
     /// Example:
     ///
-    ///     let ref = channel.onBroadcast { [weak self] (broadcast) in
+    ///     let ref = channel.onBroadcast { [weak self] (message,broadcast) in
     ///         print(broadcast.event, broadcast.payload)
     ///     }
     ///     channel.off(.broadcast, ref1)
@@ -782,10 +782,10 @@ extension Channel {
     /// - parameter callback: Called with the broadcast payload
     /// - returns: Ref counter of the subscription. See `func off()`
     @discardableResult
-    public func onBroadcast(callback: @escaping (BroadcastPayload) -> Void) -> Int {
+    public func onBroadcast(callback: @escaping (Message,BroadcastPayload) -> Void) -> Int {
         self.on(.broadcast, callback: { message in
             let payload = BroadcastPayload(type: message.payload["type"] as! String, event: message.payload["event"] as! String, payload: message.payload["payload"] as! Payload)
-            callback(payload)
+            callback(message, payload)
         })
     }
     
