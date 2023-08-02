@@ -43,12 +43,8 @@ public enum Defaults {
 
   public static let vsn = "2.0.0"
   
-  /// Default encoder, with supabase date encoding strategy
-  public static let encoder: JSONEncoder = {
-    let encoder = JSONEncoder()
-    encoder.dateEncodingStrategy = .iso8601
-    return encoder
-  }()
+  /// Default encoder
+  public static let encoder: JSONEncoder = JSONEncoder()
 
   /// Default encode function, utilizing JSONSerialization.data
   public static let encode: (Any) -> Data = { json in
@@ -60,7 +56,10 @@ public enum Defaults {
         options: JSONSerialization.WritingOptions()
       )
   }
-
+  
+  /// Default decoder
+  public static let decoder: JSONDecoder = JSONDecoder()
+  
   /// Default decode function, utilizing JSONSerialization.jsonObject
   public static let decode: (Data) -> Any? = { data in
     guard

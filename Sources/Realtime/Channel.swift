@@ -696,16 +696,38 @@ extension Channel {
 }
 // ----------------------------------------------------------------------
 
-// MARK: - Encodable Payload
+// MARK: - Codable Payload
 
 // ----------------------------------------------------------------------
-fileprivate extension Encodable {
-    /// Encodes to a payload
+
+extension Payload {
+    
+    /// Initializes a payload from a given value
+    /// - parameter value: The value to encode
     /// - parameter encoder: The encoder to use to encode the payload
-    /// - returns: The encoded payload
-    func payload(encoder: JSONEncoder = Defaults.encoder) throws -> Payload {
-        let data = try encoder.encode(self)
-        return try JSONSerialization.jsonObject(with: data, options: .allowFragments) as! Payload
+    /// - throws: Throws an error if the payload cannot be encoded
+    init<T: Encodable>(_ value: T, encoder: JSONEncoder = Defaults.encoder) throws {
+        let data = try encoder.encode(value)
+        self = try JSONSerialization.jsonObject(with: data, options: .allowFragments) as! Payload
+    }
+    
+    /// Decodes the payload to a given type
+    /// - parameter type: The type to decode to
+    /// - parameter decoder: The decoder to use to decode the payload
+    /// - returns: The decoded payload
+    /// - throws: Throws an error if the payload cannot be decoded
+    public func decode<T: Decodable>(to type: T.Type, decoder: JSONDecoder = Defaults.decoder) throws -> T {
+        let data = try JSONSerialization.data(withJSONObject: self)
+        return try decoder.decode(type, from: data)
+    }
+    
+    /// Decodes the payload to a given type
+    /// - parameter decoder: The decoder to use to decode the payload
+    /// - returns: The decoded payload
+    /// - throws: Throws an error if the payload cannot be decoded
+    public func decode<T: Decodable>(decoder: JSONDecoder = Defaults.decoder) throws -> T {
+        let data = try JSONSerialization.data(withJSONObject: self)
+        return try decoder.decode(T.self, from: data)
     }
 }
 
@@ -715,6 +737,14 @@ fileprivate extension Encodable {
 // MARK: - Broadcast API
 
 // ----------------------------------------------------------------------
+
+/// Represents the payload of a broadcast message
+public struct BroadcastPayload {
+    public let type: String
+    public let event: String
+    public let payload: Payload
+}
+
 extension Channel {
     /// Broadcasts the payload to all other members of the channel
     /// - parameter event: The event to broadcast
@@ -735,8 +765,30 @@ extension Channel {
     /// - throws: Throws an error if the payload cannot be encoded
     @discardableResult
     public func broadcast(event: String, payload: Encodable, encoder: JSONEncoder = Defaults.encoder) throws -> Push {
-        self.broadcast(event: event, payload: try payload.payload(encoder: encoder))
+        self.broadcast(event: event, payload: try Payload(payload))
     }
+
+    /// Subscribes to broadcast events. Does not handle retain cycles.
+    ///
+    /// Example:
+    ///
+    ///     let ref = channel.onBroadcast { [weak self] (broadcast) in
+    ///         print(broadcast.event, broadcast.payload)
+    ///     }
+    ///     channel.off(.broadcast, ref1)
+    ///
+    /// Subscription returns a ref counter, which can be used later to
+    /// unsubscribe the exact event listener
+    /// - parameter callback: Called with the broadcast payload
+    /// - returns: Ref counter of the subscription. See `func off()`
+    @discardableResult
+    public func onBroadcast(callback: @escaping (BroadcastPayload) -> Void) -> Int {
+        self.on(.broadcast, callback: { message in
+            let payload = BroadcastPayload(type: message.payload["type"] as! String, event: message.payload["event"] as! String, payload: message.payload["payload"] as! Payload)
+            callback(payload)
+        })
+    }
+    
 }
 // ----------------------------------------------------------------------
 
@@ -762,7 +814,7 @@ extension Channel {
     /// - throws: Throws an error if the payload cannot be encoded
     @discardableResult
     public func track(payload: Encodable, encoder: JSONEncoder = Defaults.encoder) throws -> Push {
-        self.track(payload: try payload.payload(encoder: encoder))
+        self.track(payload: try Payload(payload))
     }
     
     /// Remove presence state for given channel

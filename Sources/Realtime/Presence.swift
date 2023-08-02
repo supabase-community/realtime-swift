@@ -409,3 +409,23 @@ public final class Presence {
     return presences.map(transformer)
   }
 }
+
+
+
+extension Presence.State {
+
+    public func decode<T: Decodable>(_ type: T.Type, decoder: JSONDecoder = Defaults.decoder) throws -> [String: [T]] {
+        var decoded: [String: [T]] = [:]
+        try self.forEach { key, map in
+            let metas: [Presence.Meta] = map["metas"]!
+            let data = try JSONSerialization.data(withJSONObject: metas)
+            decoded[key] = try decoder.decode([T].self, from: data)
+        }
+        return decoded
+    }
+    
+    public func decode<T: Decodable>(decoder: JSONDecoder = Defaults.decoder) throws -> [String: [T]] {
+        return try decode(T.self, decoder: decoder)
+    }
+    
+}
