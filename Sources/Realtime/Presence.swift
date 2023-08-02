@@ -109,7 +109,7 @@ public final class Presence {
     /// phoenix events "presence_state" and "presence_diff"
     public static let defaults = Options(events: [
       .state: .presenceState,
-      .diff: .presenceState,
+      .diff: .presenceDiff,
     ])
 
     public init(events: [Events: ChannelEvent]) {
