@@ -694,6 +694,21 @@ extension Channel {
     return state == .leaving
   }
 }
+// ----------------------------------------------------------------------
+
+// MARK: - Encodable Payload
+
+// ----------------------------------------------------------------------
+fileprivate extension Encodable {
+    /// Encodes to a payload
+    /// - parameter encoder: The encoder to use to encode the payload
+    /// - returns: The encoded payload
+    func payload(encoder: JSONEncoder = Defaults.encoder) throws -> Payload {
+        let data = try encoder.encode(self)
+        return try JSONSerialization.jsonObject(with: data, options: .allowFragments) as! Payload
+    }
+}
+
 
 // ----------------------------------------------------------------------
 
@@ -701,6 +716,9 @@ extension Channel {
 
 // ----------------------------------------------------------------------
 extension Channel {
+    /// Broadcasts the payload to all other members of the channel
+    /// - parameter event: The event to broadcast
+    /// - parameter payload: The payload to broadcast
     @discardableResult
     public func broadcast(event: String, payload: Payload) -> Push {
         self.push(.broadcast, payload: [
@@ -708,6 +726,16 @@ extension Channel {
             "event": event,
             "payload": payload
         ])
+    }
+    
+    /// Broadcasts the encodable payload to all other members of the channel
+    /// - parameter event: The event to broadcast
+    /// - parameter payload: The payload to broadcast
+    /// - parameter encoder: The encoder to use to encode the payload
+    /// - throws: Throws an error if the payload cannot be encoded
+    @discardableResult
+    public func broadcast(event: String, payload: Encodable, encoder: JSONEncoder = Defaults.encoder) throws -> Push {
+        self.broadcast(event: event, payload: try payload.payload(encoder: encoder))
     }
 }
 // ----------------------------------------------------------------------
@@ -717,6 +745,8 @@ extension Channel {
 // ----------------------------------------------------------------------
 
 extension Channel {
+    /// Share presence state, available to all channel members via sync
+    /// - parameter payload: The payload to broadcast
     @discardableResult
     public func track(payload: Payload) -> Push {
         self.push(.presence, payload: [
@@ -726,6 +756,16 @@ extension Channel {
         ])
     }
     
+    /// Share presence state, available to all channel members via sync
+    /// - parameter payload: The payload to broadcast
+    /// - parameter encoder: The encoder to use to encode the payload
+    /// - throws: Throws an error if the payload cannot be encoded
+    @discardableResult
+    public func track(payload: Encodable, encoder: JSONEncoder = Defaults.encoder) throws -> Push {
+        self.track(payload: try payload.payload(encoder: encoder))
+    }
+    
+    /// Remove presence state for given channel
     @discardableResult
     public func untrack() -> Push {
         self.push(.presence, payload: [
@@ -733,5 +773,4 @@ extension Channel {
             "event": "untrack"
         ])
     }
-    
 }

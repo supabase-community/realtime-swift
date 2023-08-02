@@ -42,6 +42,13 @@ public enum Defaults {
   }
 
   public static let vsn = "2.0.0"
+  
+  /// Default encoder, with supabase date encoding strategy
+  public static let encoder: JSONEncoder = {
+    let encoder = JSONEncoder()
+    encoder.dateEncodingStrategy = .iso8601
+    return encoder
+  }()
 
   /// Default encode function, utilizing JSONSerialization.data
   public static let encode: (Any) -> Data = { json in
