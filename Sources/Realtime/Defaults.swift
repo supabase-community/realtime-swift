@@ -46,7 +46,8 @@ public enum Defaults {
   /// Default encode function, utilizing JSONSerialization.data
   public static let encode: (Any) -> Data = { json in
     assert(JSONSerialization.isValidJSONObject(json), "Invalid JSON object")
-    return try! JSONSerialization
+    return
+      try! JSONSerialization
       .data(
         withJSONObject: json,
         options: JSONSerialization.WritingOptions()
@@ -142,11 +143,10 @@ public enum ChannelEvent: RawRepresentable {
     }
   }
 
-  static func isLifecyleEvent(_ event: ChannelEvent) -> Bool {
-    switch event {
+  var isLifecyleEvent: Bool {
+    switch self {
     case .join, .leave, .reply, .error, .close: return true
-    case .heartbeat, .all, .insert, .update, .delete, .channelReply, .presence(.state), .presence(.diff):
-      return false
+    default: return false
     }
   }
 }

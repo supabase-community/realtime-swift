@@ -192,7 +192,7 @@ public class RealtimeClient: TransportDelegate {
       vsn: vsn
     )
   }
-    
+
   @available(*, deprecated, renamed: "init(_:params:vsn:)")
   public convenience init(
     endPoint: String,
@@ -206,7 +206,6 @@ public class RealtimeClient: TransportDelegate {
       vsn: vsn
     )
   }
-    
 
   public init(
     endPoint: String,

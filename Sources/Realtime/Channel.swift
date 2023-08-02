@@ -569,7 +569,7 @@ public class Channel {
     guard
       let safeJoinRef = message.joinRef,
       safeJoinRef != joinRef,
-      ChannelEvent.isLifecyleEvent(message.event)
+      message.event.isLifecyleEvent
     else { return true }
 
     socket?.logItems(
