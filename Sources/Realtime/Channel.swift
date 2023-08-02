@@ -117,7 +117,7 @@ public class Channel {
   /// - parameter topic: Topic of the Channel
   /// - parameter params: Optional. Parameters to send when joining.
   /// - parameter socket: Socket that the channel is a part of
-  init(topic: ChannelTopic, params: [String:Any], socket: RealtimeClient) {
+  init(topic: ChannelTopic, params: [String: Any], socket: RealtimeClient) {
     state = ChannelState.closed
     self.topic = topic
     self.params = params
