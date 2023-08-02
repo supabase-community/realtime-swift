@@ -583,7 +583,24 @@ public class RealtimeClient: TransportDelegate {
   // ----------------------------------------------------------------------
 
   // MARK: - Channel Initialization
-
+  // ----------------------------------------------------------------------
+  /// Initialize a new Channel
+  ///
+  /// Example:
+  ///
+  ///     let channel = socket.channel("rooms", options: ChannelOptions(presenceKey: "user123"))
+  ///
+  /// - parameter topic: Topic of the channel
+  /// - parameter options: Optional. Options for the channel
+  /// - return: A new channel
+  public func channel(
+    _ topic: ChannelTopic,
+    options: ChannelOptions = ChannelOptions()
+  ) -> Channel {
+    let channel = Channel(topic: topic, options: options, socket: self)
+    channels.append(channel)
+    return channel
+  }
   // ----------------------------------------------------------------------
   /// Initialize a new Channel
   ///
@@ -594,9 +611,10 @@ public class RealtimeClient: TransportDelegate {
   /// - parameter topic: Topic of the channel
   /// - parameter params: Optional. Parameters for the channel
   /// - return: A new channel
+  @available(*, deprecated, renamed: "channel(_:options:)")
   public func channel(
     _ topic: ChannelTopic,
-    params: [String: Any] = [:]
+    params: [String: Any]
   ) -> Channel {
     let channel = Channel(topic: topic, params: params, socket: self)
     channels.append(channel)
