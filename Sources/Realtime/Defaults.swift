@@ -198,3 +198,19 @@ public enum ChannelTopic: RawRepresentable, Equatable {
     }
   }
 }
+
+/// Represents the broadcast and presence options for a channel.
+public struct ChannelOptions {
+  /// Used to track presence payload across clients. Must be unique per client. If `nil`, the server will generate one.
+  var presenceKey: String?
+  /// Enables the client to receieve their own`broadcast` messages
+  var broadcastSelf: Bool
+  /// Instructs the server to acknoledge the client's `broadcast` messages
+  var broadcastAcknowledge: Bool
+    
+  public init(presenceKey: String? = nil, broadcastSelf: Bool = false, broadcastAcknowledge: Bool = false) {
+    self.presenceKey = presenceKey
+    self.broadcastSelf = broadcastSelf
+    self.broadcastAcknowledge = broadcastAcknowledge
+  }
+}

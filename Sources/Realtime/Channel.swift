@@ -94,11 +94,30 @@ public class Channel {
   var stateChangeRefs: [String]
 
   /// Initialize a Channel
+  /// - parameter topic: Topic of the Channel
+  /// - parameter options: Optional. Options to configure channel broadcast and presence
+  /// - parameter socket: Socket that the channel is a part of
+  public convenience init(topic: ChannelTopic, options: ChannelOptions = ChannelOptions(), socket: RealtimeClient) {
+    let params = [
+      "config": [
+        "presence": [
+          "key": options.presenceKey ?? ""
+        ],
+        "broadcast": [
+          "ack": options.broadcastAcknowledge,
+          "self": options.broadcastSelf
+        ]
+      ]
+    ]
+    self.init(topic: topic, params: params, socket: socket)
+  }
+  
+  /// Initialize a Channel
   ///
   /// - parameter topic: Topic of the Channel
   /// - parameter params: Optional. Parameters to send when joining.
   /// - parameter socket: Socket that the channel is a part of
-  init(topic: ChannelTopic, params: [String: Any] = [:], socket: RealtimeClient) {
+  init(topic: ChannelTopic, params: [String:Any], socket: RealtimeClient) {
     state = ChannelState.closed
     self.topic = topic
     self.params = params
