@@ -108,8 +108,8 @@ public final class Presence {
     /// Default set of Options used when creating Presence. Uses the
     /// phoenix events "presence_state" and "presence_diff"
     public static let defaults = Options(events: [
-      .state: .presence(.state),
-      .diff: .presence(.diff),
+      .state: .presenceState,
+      .diff: .presenceState,
     ])
 
     public init(events: [Events: ChannelEvent]) {
