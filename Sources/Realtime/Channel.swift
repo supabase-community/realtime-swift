@@ -97,7 +97,7 @@ public class Channel {
   /// - parameter topic: Topic of the Channel
   /// - parameter options: Optional. Options to configure channel broadcast and presence
   /// - parameter socket: Socket that the channel is a part of
-  public convenience init(topic: ChannelTopic, options: ChannelOptions = ChannelOptions(), socket: RealtimeClient) {
+  convenience init(topic: ChannelTopic, options: ChannelOptions = ChannelOptions(), socket: RealtimeClient) {
     let params = [
       "config": [
         "presence": [
