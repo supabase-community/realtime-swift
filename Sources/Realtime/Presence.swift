@@ -411,21 +411,30 @@ public final class Presence {
 }
 
 
+extension Presence.Map {
+    
+    /// Decodes the presence metadata to an array of the specified type.
+    /// - parameter type: The type to decode to.
+    /// - parameter decoder: The decoder to use.
+    /// - returns: The decoded values.
+    /// - throws: Any error that occurs during decoding.
+    public func decode<T: Decodable>(to type: T.Type = T.self, decoder: JSONDecoder = Defaults.decoder) throws -> [T] {
+        let metas: [Presence.Meta] = self["metas"]!
+        let data = try JSONSerialization.data(withJSONObject: metas)
+        return try decoder.decode([T].self, from: data)
+    }
+
+}
 
 extension Presence.State {
-
-    public func decode<T: Decodable>(_ type: T.Type, decoder: JSONDecoder = Defaults.decoder) throws -> [String: [T]] {
-        var decoded: [String: [T]] = [:]
-        try self.forEach { key, map in
-            let metas: [Presence.Meta] = map["metas"]!
-            let data = try JSONSerialization.data(withJSONObject: metas)
-            decoded[key] = try decoder.decode([T].self, from: data)
-        }
-        return decoded
-    }
     
-    public func decode<T: Decodable>(decoder: JSONDecoder = Defaults.decoder) throws -> [String: [T]] {
-        return try decode(T.self, decoder: decoder)
+    /// Decodes the presence metadata to a dictionary of arrays of the specified type.
+    /// - parameter type: The type to decode to.
+    /// - parameter decoder: The decoder to use.
+    /// - returns: The dictionary of decoded values.
+    /// - throws: Any error that occurs during decoding.
+    public func decode<T: Decodable>(to type: T.Type = T.self, decoder: JSONDecoder = Defaults.decoder) throws -> [String: [T]] {
+        return try mapValues { try $0.decode(decoder: decoder) }
     }
     
 }

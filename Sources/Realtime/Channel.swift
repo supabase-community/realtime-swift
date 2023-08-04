@@ -168,7 +168,7 @@ public class Channel {
     )
 
     /// Handle when a response is received after join()
-    joinPush.delegateReceive("ok", to: self) { (self, _) in
+      joinPush.delegateReceive(.ok, to: self) { (self, _) in
       // Mark the Channel as joined
       self.state = ChannelState.joined
 
@@ -181,13 +181,13 @@ public class Channel {
     }
 
     // Perform if Channel errors while attempting to joi
-    joinPush.delegateReceive("error", to: self) { (self, _) in
+      joinPush.delegateReceive(.error, to: self) { (self, _) in
       self.state = .errored
       if self.socket?.isConnected == true { self.rejoinTimer.scheduleTimeout() }
     }
 
     // Handle when the join push times out when sending after join()
-    joinPush.delegateReceive("timeout", to: self) { (self, _) in
+      joinPush.delegateReceive(.timeout, to: self) { (self, _) in
       // log that the channel timed out
       self.socket?.logItems(
         "channel", "timeout \(self.topic) \(self.joinRef ?? "") after \(self.timeout)s"
@@ -553,12 +553,12 @@ public class Channel {
     // Perform the same behavior if successfully left the channel
     // or if sending the event timed out
     leavePush
-      .receive("ok", delegated: onCloseDelegate)
-      .receive("timeout", delegated: onCloseDelegate)
+      .receive(.ok, delegated: onCloseDelegate)
+      .receive(.timeout, delegated: onCloseDelegate)
     leavePush.send()
 
     // If the Channel cannot send push events, trigger a success locally
-    if !canPush { leavePush.trigger("ok", payload: [:]) }
+    if !canPush { leavePush.trigger(.ok, payload: [:]) }
 
     // Return the push so it can be bound to
     return leavePush
@@ -716,19 +716,11 @@ extension Payload {
     /// - parameter decoder: The decoder to use to decode the payload
     /// - returns: The decoded payload
     /// - throws: Throws an error if the payload cannot be decoded
-    public func decode<T: Decodable>(to type: T.Type, decoder: JSONDecoder = Defaults.decoder) throws -> T {
+    public func decode<T: Decodable>(to type: T.Type = T.self, decoder: JSONDecoder = Defaults.decoder) throws -> T {
         let data = try JSONSerialization.data(withJSONObject: self)
         return try decoder.decode(type, from: data)
     }
     
-    /// Decodes the payload to a given type
-    /// - parameter decoder: The decoder to use to decode the payload
-    /// - returns: The decoded payload
-    /// - throws: Throws an error if the payload cannot be decoded
-    public func decode<T: Decodable>(decoder: JSONDecoder = Defaults.decoder) throws -> T {
-        let data = try JSONSerialization.data(withJSONObject: self)
-        return try decoder.decode(T.self, from: data)
-    }
 }
 
 
