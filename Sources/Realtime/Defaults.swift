@@ -236,26 +236,8 @@ public struct ChannelOptions {
 }
 
 /// Represents the different status of a push
-public enum PushStatus: RawRepresentable {
+public enum PushStatus: String {
     case ok
     case error
     case timeout
-    
-    public var rawValue: String {
-        switch self {
-        case .ok: return "ok"
-        case .error: return "error"
-        case .timeout: return "timeout"
-        }
-    }
-    
-    public init?(rawValue: String) {
-        switch rawValue {
-        case "ok": self = .ok
-        case "error": self = .error
-        case "timeout": self = .timeout
-        default: return nil
-        }
-    }
-    
 }
