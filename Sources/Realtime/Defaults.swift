@@ -42,6 +42,9 @@ public enum Defaults {
   }
 
   public static let vsn = "2.0.0"
+  
+  /// Default encoder
+  public static let encoder: JSONEncoder = JSONEncoder()
 
   /// Default encode function, utilizing JSONSerialization.data
   public static let encode: (Any) -> Data = { json in
@@ -53,7 +56,10 @@ public enum Defaults {
         options: JSONSerialization.WritingOptions()
       )
   }
-
+  
+  /// Default decoder
+  public static let decoder: JSONDecoder = JSONDecoder()
+  
   /// Default decode function, utilizing JSONSerialization.jsonObject
   public static let decode: (Data) -> Any? = { data in
     guard
@@ -227,4 +233,11 @@ public struct ChannelOptions {
     self.broadcastSelf = broadcastSelf
     self.broadcastAcknowledge = broadcastAcknowledge
   }
+}
+
+/// Represents the different status of a push
+public enum PushStatus: String {
+    case ok
+    case error
+    case timeout
 }

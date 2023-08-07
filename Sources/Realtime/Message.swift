@@ -49,8 +49,11 @@ public class Message {
   /// ```swift
   /// message.payload["status"]
   /// ```
-  public var status: String? {
-    return rawPayload["status"] as? String
+  public var status: PushStatus? {
+    guard let status = rawPayload["status"] as? String else {
+      return nil
+    }
+    return PushStatus(rawValue: status)
   }
 
   init(

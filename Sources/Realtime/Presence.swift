@@ -109,7 +109,7 @@ public final class Presence {
     /// phoenix events "presence_state" and "presence_diff"
     public static let defaults = Options(events: [
       .state: .presenceState,
-      .diff: .presenceState,
+      .diff: .presenceDiff,
     ])
 
     public init(events: [Events: ChannelEvent]) {
@@ -408,4 +408,33 @@ public final class Presence {
   ) -> [T] {
     return presences.map(transformer)
   }
+}
+
+
+extension Presence.Map {
+    
+    /// Decodes the presence metadata to an array of the specified type.
+    /// - parameter type: The type to decode to.
+    /// - parameter decoder: The decoder to use.
+    /// - returns: The decoded values.
+    /// - throws: Any error that occurs during decoding.
+    public func decode<T: Decodable>(to type: T.Type = T.self, decoder: JSONDecoder = Defaults.decoder) throws -> [T] {
+        let metas: [Presence.Meta] = self["metas"]!
+        let data = try JSONSerialization.data(withJSONObject: metas)
+        return try decoder.decode([T].self, from: data)
+    }
+
+}
+
+extension Presence.State {
+    
+    /// Decodes the presence metadata to a dictionary of arrays of the specified type.
+    /// - parameter type: The type to decode to.
+    /// - parameter decoder: The decoder to use.
+    /// - returns: The dictionary of decoded values.
+    /// - throws: Any error that occurs during decoding.
+    public func decode<T: Decodable>(to type: T.Type = T.self, decoder: JSONDecoder = Defaults.decoder) throws -> [String: [T]] {
+        return try mapValues { try $0.decode(decoder: decoder) }
+    }
+    
 }
