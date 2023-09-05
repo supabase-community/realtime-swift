@@ -95,21 +95,10 @@ public class Channel {
 
   /// Initialize a Channel
   /// - parameter topic: Topic of the Channel
-  /// - parameter options: Optional. Options to configure channel broadcast and presence
+  /// - parameter options: Optional. Options to configure channel broadcast and presence. Leave nil for postgres channel.
   /// - parameter socket: Socket that the channel is a part of
-  convenience init(topic: ChannelTopic, options: ChannelOptions = ChannelOptions(), socket: RealtimeClient) {
-    let params = [
-      "config": [
-        "presence": [
-          "key": options.presenceKey ?? ""
-        ],
-        "broadcast": [
-          "ack": options.broadcastAcknowledge,
-          "self": options.broadcastSelf
-        ]
-      ]
-    ]
-    self.init(topic: topic, params: params, socket: socket)
+  convenience init(topic: ChannelTopic, options: ChannelOptions? = nil, socket: RealtimeClient) {
+    self.init(topic: topic, params: options?.params ?? [:], socket: socket)
   }
   
   /// Initialize a Channel
