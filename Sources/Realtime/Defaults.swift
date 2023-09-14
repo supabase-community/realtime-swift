@@ -233,6 +233,22 @@ public struct ChannelOptions {
     self.broadcastSelf = broadcastSelf
     self.broadcastAcknowledge = broadcastAcknowledge
   }
+  
+  /// Parameters used to configure the channel
+  var params: [String: [String: Any]] {
+    [
+      "config": [
+        "presence": [
+          "key": presenceKey ?? ""
+        ],
+        "broadcast": [
+          "ack": broadcastAcknowledge,
+          "self": broadcastSelf
+        ]
+      ]
+    ]
+  }
+
 }
 
 /// Represents the different status of a push

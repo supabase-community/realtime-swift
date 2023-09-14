@@ -590,11 +590,11 @@ public class RealtimeClient: TransportDelegate {
   ///     let channel = socket.channel("rooms", options: ChannelOptions(presenceKey: "user123"))
   ///
   /// - parameter topic: Topic of the channel
-  /// - parameter options: Optional. Options for the channel
+  /// - parameter options: Optional. Options to configure channel broadcast and presence. Leave nil for postgres channel.
   /// - return: A new channel
   public func channel(
     _ topic: ChannelTopic,
-    options: ChannelOptions = ChannelOptions()
+    options: ChannelOptions? = nil
   ) -> Channel {
     let channel = Channel(topic: topic, options: options, socket: self)
     channels.append(channel)
