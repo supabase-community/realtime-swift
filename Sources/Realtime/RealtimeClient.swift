@@ -1,23 +1,3 @@
-// Copyright (c) 2021 Supabase
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-// THE SOFTWARE.
-
 // Copyright (c) 2021 David Stump <david@davidstump.net>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -40,25 +20,45 @@
 
 import Foundation
 
-#if canImport(FoundationNetworking)
-  import FoundationNetworking
-#endif
+public enum SocketError: Error {
+  case abnormalClosureError
+}
 
-/// ## RealtimeClient
+/// Alias for a JSON dictionary [String: Any]
+public typealias Payload = [String: Any]
+
+/// Alias for a function returning an optional JSON dictionary (`Payload?`)
+public typealias PayloadClosure = () -> Payload?
+
+/// Struct that gathers callbacks assigned to the Socket
+struct StateChangeCallbacks {
+  var open: [(ref: String, callback: Delegated<URLResponse?, Void>)] = []
+  var close: [(ref: String, callback: Delegated<(Int, String?), Void>)] = []
+  var error: [(ref: String, callback: Delegated<(Error, URLResponse?), Void>)] = []
+  var message: [(ref: String, callback: Delegated<Message, Void>)] = []
+}
+
+/// ## Socket Connection
+/// A single connection is established to the server and
+/// channels are multiplexed over the connection.
+/// Connect to the server using the `Socket` class:
 ///
 /// ```swift
-/// let socket = new RealtimeClient("/socket", params: { ["apikey": "123" ] })
+/// let socket = new Socket("/socket", paramsClosure: { ["userToken": "123" ] })
 /// socket.connect()
 /// ```
 ///
+/// The `Socket` constructor takes the mount point of the socket,
+/// the authentication params, as well as options that can be found in
+/// the Socket docs, such as configuring the heartbeat.
 public class RealtimeClient: TransportDelegate {
   // ----------------------------------------------------------------------
 
   // MARK: - Public Attributes
 
   // ----------------------------------------------------------------------
-  /// The string WebSocket endpoint (ie `"ws://supabase.io/realtime/v1"`,
-  /// `"wss://supabase.io/realtime/v1"`, etc.) That was passed to the Socket during
+  /// The string WebSocket endpoint (ie `"ws://example.com/socket"`,
+  /// `"wss://example.com"`, etc.) That was passed to the Socket during
   /// initialization. The URL endpoint will be modified by the Socket to
   /// include `"/websocket"` if missing.
   public let endPoint: String
@@ -66,26 +66,38 @@ public class RealtimeClient: TransportDelegate {
   /// The fully qualified socket URL
   public private(set) var endPointUrl: URL
 
-  /// Resolves to return the `params` result at the time of calling.
+  /// Resolves to return the `paramsClosure` result at the time of calling.
   /// If the `Socket` was created with static params, then those will be
   /// returned every time.
-  public var params: [String: Any]?
+  public var params: Payload? {
+    return paramsClosure?()
+  }
 
-  /// The WebSocket transport. Default behavior is to provide a Starscream
-  /// WebSocket instance. Potentially allows changing WebSockets in future
-  private let transport: Transport
+  /// The optional params closure used to get params when connecting. Must
+  /// be set when initializing the Socket.
+  public let paramsClosure: PayloadClosure?
+
+  /// The WebSocket transport. Default behavior is to provide a
+  /// URLSessionWebsocketTask. See README for alternatives.
+  private let transport: (URL) -> Transport
+
+  /// Phoenix serializer version, defaults to "2.0.0"
+  public let vsn: String
 
   /// Override to provide custom encoding of data before writing to the socket
-  public var encode: ([String: Any]) -> Data = Defaults.encode
+  public var encode: (Any) -> Data = Defaults.encode
 
-  /// Override to provide customd decoding of data read from the socket
-  public var decode: (Data) -> [String: Any]? = Defaults.decode
+  /// Override to provide custom decoding of data read from the socket
+  public var decode: (Data) -> Any? = Defaults.decode
 
   /// Timeout to use when opening connections
   public var timeout: TimeInterval = Defaults.timeoutInterval
 
   /// Interval between sending a heartbeat
   public var heartbeatInterval: TimeInterval = Defaults.heartbeatInterval
+
+  /// The maximum amount of time which the system may delay heartbeats in order to optimize power usage
+  public var heartbeatLeeway: DispatchTimeInterval = Defaults.heartbeatLeeway
 
   /// Interval between socket reconnect attempts, in seconds
   public var reconnectAfter: (Int) -> TimeInterval = Defaults.reconnectSteppedBackOff
@@ -121,20 +133,17 @@ public class RealtimeClient: TransportDelegate {
 
   // ----------------------------------------------------------------------
   /// Callbacks for socket state changes
-  var stateChangeCallbacks = StateChangeCallbacks()
+  var stateChangeCallbacks: StateChangeCallbacks = .init()
 
   /// Collection on channels created for the Socket
-  var channels: [Channel] = []
+  public internal(set) var channels: [Channel] = []
 
   /// Buffers messages that need to be sent once the socket has connected. It is an array
   /// of tuples, with the ref of the message to send and the callback that will send the message.
   var sendBuffer: [(ref: String?, callback: () throws -> Void)] = []
 
   /// Ref counter for messages
-  var ref = UInt64.min  // 0 (max: 18,446,744,073,709,551,615)
-
-  /// Queue to run heartbeat timer on
-  var heartbeatQueue = DispatchQueue(label: "com.supabase.realtime.socket.heartbeat")
+  var ref: UInt64 = .min  // 0 (max: 18,446,744,073,709,551,615)
 
   /// Timer that triggers sending new Heartbeat messages
   var heartbeatTimer: HeartbeatTimer?
@@ -145,32 +154,79 @@ public class RealtimeClient: TransportDelegate {
   /// Timer to use when attempting to reconnect
   var reconnectTimer: TimeoutTimer
 
-  /// True if the Socket closed cleaned. False if not (connection timeout, heartbeat, etc)
-  var closeWasClean: Bool = false
+  /// Close status
+  var closeStatus: CloseStatus = .unknown
 
   /// The connection to the server
-  var connection: Transport?
+  var connection: Transport? = nil
 
   // ----------------------------------------------------------------------
 
   // MARK: - Initialization
 
   // ----------------------------------------------------------------------
+  @available(macOS 10.15, iOS 13, watchOS 6, tvOS 13, *)
+  public convenience init(
+    _ endPoint: String,
+    params: Payload? = nil,
+    vsn: String = Defaults.vsn
+  ) {
+    self.init(
+      endPoint: endPoint,
+      transport: { url in URLSessionTransport(url: url) },
+      paramsClosure: { params },
+      vsn: vsn
+    )
+  }
+
+  @available(macOS 10.15, iOS 13, watchOS 6, tvOS 13, *)
+  public convenience init(
+    _ endPoint: String,
+    paramsClosure: PayloadClosure?,
+    vsn: String = Defaults.vsn
+  ) {
+    self.init(
+      endPoint: endPoint,
+      transport: { url in URLSessionTransport(url: url) },
+      paramsClosure: paramsClosure,
+      vsn: vsn
+    )
+  }
+
+  @available(*, deprecated, renamed: "init(_:params:vsn:)")
+  public convenience init(
+    endPoint: String,
+    params: Payload? = nil,
+    vsn: String = Defaults.vsn
+  ) {
+    self.init(
+      endPoint: endPoint,
+      transport: { url in URLSessionTransport(url: url) },
+      paramsClosure: { params },
+      vsn: vsn
+    )
+  }
+
   public init(
     endPoint: String,
-    params: [String: Any]? = nil
+    transport: @escaping ((URL) -> Transport),
+    paramsClosure: PayloadClosure? = nil,
+    vsn: String = Defaults.vsn
   ) {
+    self.transport = transport
+    self.paramsClosure = paramsClosure
+    self.endPoint = endPoint
+    self.vsn = vsn
     endPointUrl = RealtimeClient.buildEndpointUrl(
       endpoint: endPoint,
-      params: params)
-    transport = URLSessionTransport(url: endPointUrl)
-    self.params = params
-    self.endPoint = endPoint
+      paramsClosure: paramsClosure,
+      vsn: vsn
+    )
 
     reconnectTimer = TimeoutTimer()
     reconnectTimer.callback.delegate(to: self) { (self) in
       self.logItems("Socket attempting to reconnect")
-      self.teardown { self.connect() }
+      self.teardown(reason: "reconnection") { self.connect() }
     }
     reconnectTimer.timerCalculation
       .delegate(to: self) { (self, tries) -> TimeInterval in
@@ -200,7 +256,12 @@ public class RealtimeClient: TransportDelegate {
 
   /// - return: True if the socket is connected
   public var isConnected: Bool {
-    return connection?.readyState == .open
+    return connectionState == .open
+  }
+
+  /// - return: The state of the connect. [.connecting, .open, .closing, .closed]
+  public var connectionState: TransportReadyState {
+    return connection?.readyState ?? .closed
   }
 
   /// Connects the Socket. The params passed to the Socket on initialization
@@ -210,17 +271,26 @@ public class RealtimeClient: TransportDelegate {
     // Do not attempt to reconnect if the socket is currently connected
     guard !isConnected else { return }
 
-    // Reset the clean close flag when attempting to connect
-    closeWasClean = false
+    // Reset the close status when attempting to connect
+    closeStatus = .unknown
 
     // We need to build this right before attempting to connect as the
     // parameters could be built upon demand and change over time
     endPointUrl = RealtimeClient.buildEndpointUrl(
       endpoint: endPoint,
-      params: params)
+      paramsClosure: paramsClosure,
+      vsn: vsn
+    )
 
-    connection = transport
+    connection = transport(endPointUrl)
     connection?.delegate = self
+    //    self.connection?.disableSSLCertValidation = disableSSLCertValidation
+    //
+    //    #if os(Linux)
+    //    #else
+    //    self.connection?.security = security
+    //    self.connection?.enabledSSLCipherSuites = enabledSSLCipherSuites
+    //    #endif
 
     connection?.connect()
   }
@@ -228,31 +298,33 @@ public class RealtimeClient: TransportDelegate {
   /// Disconnects the socket
   ///
   /// - parameter code: Optional. Closing status code
-  /// - paramter callback: Optional. Called when disconnected
+  /// - parameter callback: Optional. Called when disconnected
   public func disconnect(
     code: CloseCode = CloseCode.normal,
+    reason: String? = nil,
     callback: (() -> Void)? = nil
   ) {
     // The socket was closed cleanly by the User
-    closeWasClean = true
+    closeStatus = CloseStatus(closeCode: code.rawValue)
 
     // Reset any reconnects and teardown the socket connection
     reconnectTimer.reset()
-    teardown(code: code, callback: callback)
+    teardown(code: code, reason: reason, callback: callback)
   }
 
-  internal func teardown(code: CloseCode = CloseCode.normal, callback: (() -> Void)? = nil) {
+  internal func teardown(
+    code: CloseCode = CloseCode.normal, reason: String? = nil, callback: (() -> Void)? = nil
+  ) {
     connection?.delegate = nil
-    connection?.disconnect(code: code.rawValue, reason: nil)
+    connection?.disconnect(code: code.rawValue, reason: reason)
     connection = nil
 
     // The socket connection has been torndown, heartbeats are not needed
-    heartbeatTimer?.stopTimer()
-    heartbeatTimer = nil
+    heartbeatTimer?.stop()
 
     // Since the connection's delegate was nil'd out, inform all state
     // callbacks that the connection has closed
-    stateChangeCallbacks.close.forEach { $0.callback.call() }
+    stateChangeCallbacks.close.forEach { $0.callback.call((code.rawValue, reason)) }
     callback?()
   }
 
@@ -274,7 +346,22 @@ public class RealtimeClient: TransportDelegate {
   /// - parameter callback: Called when the Socket is opened
   @discardableResult
   public func onOpen(callback: @escaping () -> Void) -> String {
-    var delegated = Delegated<Void, Void>()
+    return onOpen { _ in callback() }
+  }
+
+  /// Registers callbacks for connection open events. Does not handle retain
+  /// cycles. Use `delegateOnOpen(to:)` for automatic handling of retain cycles.
+  ///
+  /// Example:
+  ///
+  ///     socket.onOpen() { [weak self] response in
+  ///         self?.print("Socket Connection Open")
+  ///     }
+  ///
+  /// - parameter callback: Called when the Socket is opened
+  @discardableResult
+  public func onOpen(callback: @escaping (URLResponse?) -> Void) -> String {
+    var delegated = Delegated<URLResponse?, Void>()
     delegated.manuallyDelegate(with: callback)
 
     return append(callback: delegated, to: &stateChangeCallbacks.open)
@@ -296,7 +383,26 @@ public class RealtimeClient: TransportDelegate {
     to owner: T,
     callback: @escaping ((T) -> Void)
   ) -> String {
-    var delegated = Delegated<Void, Void>()
+    return delegateOnOpen(to: owner) { owner, _ in callback(owner) }
+  }
+
+  /// Registers callbacks for connection open events. Automatically handles
+  /// retain cycles. Use `onOpen()` to handle yourself.
+  ///
+  /// Example:
+  ///
+  ///     socket.delegateOnOpen(to: self) { self, response in
+  ///         self.print("Socket Connection Open")
+  ///     }
+  ///
+  /// - parameter owner: Class registering the callback. Usually `self`
+  /// - parameter callback: Called when the Socket is opened
+  @discardableResult
+  public func delegateOnOpen<T: AnyObject>(
+    to owner: T,
+    callback: @escaping ((T, URLResponse?) -> Void)
+  ) -> String {
+    var delegated = Delegated<URLResponse?, Void>()
     delegated.delegate(to: owner, with: callback)
 
     return append(callback: delegated, to: &stateChangeCallbacks.open)
@@ -314,7 +420,22 @@ public class RealtimeClient: TransportDelegate {
   /// - parameter callback: Called when the Socket is closed
   @discardableResult
   public func onClose(callback: @escaping () -> Void) -> String {
-    var delegated = Delegated<Void, Void>()
+    return onClose { _, _ in callback() }
+  }
+
+  /// Registers callbacks for connection close events. Does not handle retain
+  /// cycles. Use `delegateOnClose(_:)` for automatic handling of retain cycles.
+  ///
+  /// Example:
+  ///
+  ///     socket.onClose() { [weak self] code, reason in
+  ///         self?.print("Socket Connection Close")
+  ///     }
+  ///
+  /// - parameter callback: Called when the Socket is closed
+  @discardableResult
+  public func onClose(callback: @escaping (Int, String?) -> Void) -> String {
+    var delegated = Delegated<(Int, String?), Void>()
     delegated.manuallyDelegate(with: callback)
 
     return append(callback: delegated, to: &stateChangeCallbacks.close)
@@ -336,7 +457,26 @@ public class RealtimeClient: TransportDelegate {
     to owner: T,
     callback: @escaping ((T) -> Void)
   ) -> String {
-    var delegated = Delegated<Void, Void>()
+    return delegateOnClose(to: owner) { owner, _ in callback(owner) }
+  }
+
+  /// Registers callbacks for connection close events. Automatically handles
+  /// retain cycles. Use `onClose()` to handle yourself.
+  ///
+  /// Example:
+  ///
+  ///     socket.delegateOnClose(self) { self, code, reason in
+  ///         self.print("Socket Connection Close")
+  ///     }
+  ///
+  /// - parameter owner: Class registering the callback. Usually `self`
+  /// - parameter callback: Called when the Socket is closed
+  @discardableResult
+  public func delegateOnClose<T: AnyObject>(
+    to owner: T,
+    callback: @escaping ((T, (Int, String?)) -> Void)
+  ) -> String {
+    var delegated = Delegated<(Int, String?), Void>()
     delegated.delegate(to: owner, with: callback)
 
     return append(callback: delegated, to: &stateChangeCallbacks.close)
@@ -353,8 +493,8 @@ public class RealtimeClient: TransportDelegate {
   ///
   /// - parameter callback: Called when the Socket errors
   @discardableResult
-  public func onError(callback: @escaping (Error) -> Void) -> String {
-    var delegated = Delegated<Error, Void>()
+  public func onError(callback: @escaping ((Error, URLResponse?)) -> Void) -> String {
+    var delegated = Delegated<(Error, URLResponse?), Void>()
     delegated.manuallyDelegate(with: callback)
 
     return append(callback: delegated, to: &stateChangeCallbacks.error)
@@ -374,9 +514,9 @@ public class RealtimeClient: TransportDelegate {
   @discardableResult
   public func delegateOnError<T: AnyObject>(
     to owner: T,
-    callback: @escaping ((T, Error) -> Void)
+    callback: @escaping ((T, (Error, URLResponse?)) -> Void)
   ) -> String {
-    var delegated = Delegated<Error, Void>()
+    var delegated = Delegated<(Error, URLResponse?), Void>()
     delegated.delegate(to: owner, with: callback)
 
     return append(callback: delegated, to: &stateChangeCallbacks.error)
@@ -442,7 +582,24 @@ public class RealtimeClient: TransportDelegate {
   // ----------------------------------------------------------------------
 
   // MARK: - Channel Initialization
-
+  // ----------------------------------------------------------------------
+  /// Initialize a new Channel
+  ///
+  /// Example:
+  ///
+  ///     let channel = socket.channel("rooms", options: ChannelOptions(presenceKey: "user123"))
+  ///
+  /// - parameter topic: Topic of the channel
+  /// - parameter options: Optional. Options to configure channel broadcast and presence. Leave nil for postgres channel.
+  /// - return: A new channel
+  public func channel(
+    _ topic: ChannelTopic,
+    options: ChannelOptions? = nil
+  ) -> Channel {
+    let channel = Channel(topic: topic, options: options, socket: self)
+    channels.append(channel)
+    return channel
+  }
   // ----------------------------------------------------------------------
   /// Initialize a new Channel
   ///
@@ -453,9 +610,10 @@ public class RealtimeClient: TransportDelegate {
   /// - parameter topic: Topic of the channel
   /// - parameter params: Optional. Parameters for the channel
   /// - return: A new channel
+  @available(*, deprecated, renamed: "channel(_:options:)")
   public func channel(
     _ topic: ChannelTopic,
-    params: [String: Any] = [:]
+    params: [String: Any]
   ) -> Channel {
     let channel = Channel(topic: topic, params: params, socket: self)
     channels.append(channel)
@@ -483,10 +641,18 @@ public class RealtimeClient: TransportDelegate {
   ///
   /// - Parameter refs: List of refs returned by calls to `onOpen`, `onClose`, etc
   public func off(_ refs: [String]) {
-    stateChangeCallbacks.open = stateChangeCallbacks.open.filter { !refs.contains($0.ref) }
-    stateChangeCallbacks.close = stateChangeCallbacks.close.filter { !refs.contains($0.ref) }
-    stateChangeCallbacks.error = stateChangeCallbacks.error.filter { !refs.contains($0.ref) }
-    stateChangeCallbacks.message = stateChangeCallbacks.message.filter { !refs.contains($0.ref) }
+    stateChangeCallbacks.open = stateChangeCallbacks.open.filter {
+      !refs.contains($0.ref)
+    }
+    stateChangeCallbacks.close = stateChangeCallbacks.close.filter {
+      !refs.contains($0.ref)
+    }
+    stateChangeCallbacks.error = stateChangeCallbacks.error.filter {
+      !refs.contains($0.ref)
+    }
+    stateChangeCallbacks.message = stateChangeCallbacks.message.filter {
+      !refs.contains($0.ref)
+    }
   }
 
   // ----------------------------------------------------------------------
@@ -506,20 +672,12 @@ public class RealtimeClient: TransportDelegate {
   internal func push(
     topic: ChannelTopic,
     event: ChannelEvent,
-    payload: [String: Any],
+    payload: Payload,
     ref: String? = nil,
     joinRef: String? = nil
   ) {
     let callback: (() throws -> Void) = {
-      var body: [String: Any] = [
-        "topic": topic.rawValue,
-        "event": event.rawValue,
-        "payload": payload,
-      ]
-
-      if let safeRef = ref { body["ref"] = safeRef }
-      if let safeJoinRef = joinRef { body["join_ref"] = safeJoinRef }
-
+      let body: [Any?] = [joinRef, ref, topic.rawValue, event.rawValue, payload]
       let data = self.encode(body)
 
       self.logItems("push", "Sending \(String(data: data, encoding: String.Encoding.utf8) ?? "")")
@@ -544,7 +702,7 @@ public class RealtimeClient: TransportDelegate {
 
   /// Logs the message. Override Socket.logger for specialized logging. noops by default
   ///
-  /// - paramter items: List of items to be logged. Behaves just like debugPrint()
+  /// - parameter items: List of items to be logged. Behaves just like debugPrint()
   func logItems(_ items: Any...) {
     let msg = items.map { String(describing: $0) }.joined(separator: ", ")
     logger?("SwiftPhoenixClient: \(msg)")
@@ -556,11 +714,11 @@ public class RealtimeClient: TransportDelegate {
 
   // ----------------------------------------------------------------------
   /// Called when the underlying Websocket connects to it's host
-  internal func onConnectionOpen() {
+  internal func onConnectionOpen(response: URLResponse?) {
     logItems("transport", "Connected to \(endPoint)")
 
-    // Reset the closeWasClean flag now that the socket has been connected
-    closeWasClean = false
+    // Reset the close status now that the socket has been connected
+    closeStatus = .unknown
 
     // Send any messages that were waiting for a connection
     flushSendBuffer()
@@ -572,33 +730,35 @@ public class RealtimeClient: TransportDelegate {
     resetHeartbeat()
 
     // Inform all onOpen callbacks that the Socket has opened
-    stateChangeCallbacks.open.forEach { $0.callback.call() }
+    stateChangeCallbacks.open.forEach { $0.callback.call(response) }
   }
 
-  internal func onConnectionClosed(code _: Int?) {
+  internal func onConnectionClosed(code: Int, reason: String?) {
     logItems("transport", "close")
-    triggerChannelError()
-
-    // Prevent the heartbeat from triggering if the
-    heartbeatTimer?.stopTimer()
-    heartbeatTimer = nil
-
-    // Only attempt to reconnect if the socket did not close normally
-    if !closeWasClean {
-      reconnectTimer.scheduleTimeout()
-    }
-
-    stateChangeCallbacks.close.forEach { $0.callback.call() }
-  }
-
-  internal func onConnectionError(_ error: Error) {
-    logItems("transport", error)
 
     // Send an error to all channels
     triggerChannelError()
 
-    // Inform any state callabcks of the error
-    stateChangeCallbacks.error.forEach { $0.callback.call(error) }
+    // Prevent the heartbeat from triggering if the
+    heartbeatTimer?.stop()
+
+    // Only attempt to reconnect if the socket did not close normally,
+    // or if it was closed abnormally but on client side (e.g. due to heartbeat timeout)
+    if closeStatus.shouldReconnect {
+      reconnectTimer.scheduleTimeout()
+    }
+
+    stateChangeCallbacks.close.forEach { $0.callback.call((code, reason)) }
+  }
+
+  internal func onConnectionError(_ error: Error, response: URLResponse?) {
+    logItems("transport", error, response ?? "")
+
+    // Send an error to all channels
+    triggerChannelError()
+
+    // Inform any state callbacks of the error
+    stateChangeCallbacks.error.forEach { $0.callback.call((error, response)) }
   }
 
   internal func onConnectionMessage(_ rawMessage: String) {
@@ -606,7 +766,7 @@ public class RealtimeClient: TransportDelegate {
 
     guard
       let data = rawMessage.data(using: String.Encoding.utf8),
-      let json = decode(data),
+      let json = decode(data) as? [Any?],
       let message = Message(json: json)
     else {
       logItems("receive: Unable to parse JSON: \(rawMessage)")
@@ -641,7 +801,7 @@ public class RealtimeClient: TransportDelegate {
 
   /// Send all messages that were buffered before the socket opened
   internal func flushSendBuffer() {
-    guard isConnected, sendBuffer.count > 0 else { return }
+    guard isConnected && sendBuffer.count > 0 else { return }
     sendBuffer.forEach { try? $0.callback() }
     sendBuffer = []
   }
@@ -652,7 +812,9 @@ public class RealtimeClient: TransportDelegate {
   }
 
   /// Builds a fully qualified socket `URL` from `endPoint` and `params`.
-  internal static func buildEndpointUrl(endpoint: String, params: [String: Any]?) -> URL {
+  internal static func buildEndpointUrl(
+    endpoint: String, paramsClosure params: PayloadClosure?, vsn: String
+  ) -> URL {
     guard
       let url = URL(string: endpoint),
       var urlComponents = URLComponents(url: url, resolvingAgainstBaseURL: false)
@@ -669,11 +831,14 @@ public class RealtimeClient: TransportDelegate {
       urlComponents.path.append("websocket")
     }
 
+    urlComponents.queryItems = [URLQueryItem(name: "vsn", value: vsn)]
+
     // If there are parameters, append them to the URL
-    if let params = params {
-      urlComponents.queryItems = params.map {
-        URLQueryItem(name: $0.key, value: String(describing: $0.value))
-      }
+    if let params = params?() {
+      urlComponents.queryItems?.append(
+        contentsOf: params.map {
+          URLQueryItem(name: $0.key, value: String(describing: $0.value))
+        })
     }
 
     guard let qualifiedUrl = urlComponents.url
@@ -688,7 +853,7 @@ public class RealtimeClient: TransportDelegate {
     else { return }
 
     logItems("transport", "leaving duplicate topic: [\(topic)]")
-    dupe.unsubscribe()
+    dupe.leave()
   }
 
   // ----------------------------------------------------------------------
@@ -699,19 +864,18 @@ public class RealtimeClient: TransportDelegate {
   internal func resetHeartbeat() {
     // Clear anything related to the heartbeat
     pendingHeartbeatRef = nil
-    heartbeatTimer?.stopTimer()
-    heartbeatTimer = nil
+    heartbeatTimer?.stop()
 
     // Do not start up the heartbeat timer if skipHeartbeat is true
     guard !skipHeartbeat else { return }
 
-    heartbeatTimer = HeartbeatTimer(timeInterval: heartbeatInterval, dispatchQueue: heartbeatQueue)
-    heartbeatTimer?.startTimerWithEvent(eventHandler: { [weak self] in
+    heartbeatTimer = HeartbeatTimer(timeInterval: heartbeatInterval, leeway: heartbeatLeeway)
+    heartbeatTimer?.start(eventHandler: { [weak self] in
       self?.sendHeartbeat()
     })
   }
 
-  /// Sends a hearbeat payload to the phoenix serverss
+  /// Sends a heartbeat payload to the phoenix servers
   @objc func sendHeartbeat() {
     // Do not send if the connection is closed
     guard isConnected else { return }
@@ -723,7 +887,8 @@ public class RealtimeClient: TransportDelegate {
       pendingHeartbeatRef = nil
       logItems(
         "transport",
-        "heartbeat timeout. Attempting to re-establish connection")
+        "heartbeat timeout. Attempting to re-establish connection"
+      )
 
       // Close the socket manually, flagging the closure as abnormal. Do not use
       // `teardown` or `disconnect` as they will nil out the websocket delegate.
@@ -738,16 +903,20 @@ public class RealtimeClient: TransportDelegate {
       topic: .heartbeat,
       event: ChannelEvent.heartbeat,
       payload: [:],
-      ref: pendingHeartbeatRef)
+      ref: pendingHeartbeatRef
+    )
   }
 
   internal func abnormalClose(_ reason: String) {
-    closeWasClean = false
+    closeStatus = .abnormal
 
     /*
          We use NORMAL here since the client is the one determining to close the
-         connection. However, we keep a flag `closeWasClean` set to false so that
+         connection. However, we set to close status to abnormal so that
          the client knows that it should attempt to reconnect.
+
+         If the server subsequently acknowledges with code 1000 (normal close),
+         the socket will keep the `.abnormal` close status and trigger a reconnection.
          */
     connection?.disconnect(code: CloseCode.normal.rawValue, reason: reason)
   }
@@ -757,21 +926,21 @@ public class RealtimeClient: TransportDelegate {
   // MARK: - TransportDelegate
 
   // ----------------------------------------------------------------------
-  public func onOpen() {
-    onConnectionOpen()
+  public func onOpen(response: URLResponse?) {
+    onConnectionOpen(response: response)
   }
 
-  public func onError(error: Error) {
-    onConnectionError(error)
+  public func onError(error: Error, response: URLResponse?) {
+    onConnectionError(error, response: response)
   }
 
   public func onMessage(message: String) {
     onConnectionMessage(message)
   }
 
-  public func onClose(code: Int) {
-    closeWasClean = code != CloseCode.abnormal.rawValue
-    onConnectionClosed(code: code)
+  public func onClose(code: Int, reason: String? = nil) {
+    closeStatus.update(transportCloseCode: code)
+    onConnectionClosed(code: code, reason: reason)
   }
 }
 
@@ -787,5 +956,60 @@ extension RealtimeClient {
     case normal = 1000
 
     case goingAway = 1001
+  }
+}
+
+// ----------------------------------------------------------------------
+
+// MARK: - Close Status
+
+// ----------------------------------------------------------------------
+extension RealtimeClient {
+  /// Indicates the different closure states a socket can be in.
+  enum CloseStatus {
+    /// Undetermined closure state
+    case unknown
+    /// A clean closure requested either by the client or the server
+    case clean
+    /// An abnormal closure requested by the client
+    case abnormal
+
+    /// Temporarily close the socket, pausing reconnect attempts. Useful on mobile
+    /// clients when disconnecting a because the app resigned active but should
+    /// reconnect when app enters active state.
+    case temporary
+
+    init(closeCode: Int) {
+      switch closeCode {
+      case CloseCode.abnormal.rawValue:
+        self = .abnormal
+      case CloseCode.goingAway.rawValue:
+        self = .temporary
+      default:
+        self = .clean
+      }
+    }
+
+    mutating func update(transportCloseCode: Int) {
+      switch self {
+      case .unknown, .clean, .temporary:
+        // Allow transport layer to override these statuses.
+        self = .init(closeCode: transportCloseCode)
+      case .abnormal:
+        // Do not allow transport layer to override the abnormal close status.
+        // The socket itself should reset it on the next connection attempt.
+        // See `Socket.abnormalClose(_:)` for more information.
+        break
+      }
+    }
+
+    var shouldReconnect: Bool {
+      switch self {
+      case .unknown, .abnormal:
+        return true
+      case .clean, .temporary:
+        return false
+      }
+    }
   }
 }

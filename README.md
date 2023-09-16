@@ -96,8 +96,67 @@ allUserId99Changes.subscribe()
 allUserId99Changes.unsubscribe()
 allUserId99Changes.off(.all)
 ```
+### Broadcast
 
+* Listen for `broadcast` messages:
 
+```swift
+let channel = client.channel(.table("channel_id", schema: "someChannel"), options: .init(presenceKey: "user_uuid"))
+channel.on(.broadcast) { message in
+    let payload = message.payload["payload"]
+    let event = message.payload["event"]
+    let type = message.payload["type"]
+    print(type, event, payload)
+}
+
+channel.join()
+```
+
+* Send `broadcast` messages:
+    
+```swift
+let channel = client.channel(.table("channel_id", schema: "someChannel"), options: .init(presenceKey: "user_uuid"))
+channel.join()
+
+channel.broadcast(event: "my_event", payload: ["hello": "world"])
+```
+### Presence
+
+Presence can be used to share state between clients.
+
+* Listen to presence `sync` events to track state changes:
+
+```swift
+let channel = client.channel(.table("channel_id", schema: "someChannel"), options: .init(presenceKey: "user_uuid"))
+let presence = Presence(channel: channel)
+
+presence.onSync {
+    print("presence sync", presence?.state, presence?.list())
+}
+
+channel.join()
+// ...
+```
+
+* Track presence state changes:
+
+```swift
+let channel = client.channel(.table("channel_id", schema: "someChannel"), options: .init(presenceKey: "user_uuid"))
+channel.join()
+
+channel.track(payload: [
+    ["hello": "world]
+])
+```
+
+* Remove tracked presence state changes:
+
+```swift
+let channel = client.channel(.table("channel_id", schema: "someChannel"), options: .init(presenceKey: "user_uuid"))
+channel.join()
+
+channel.untrack()
+```
 ## Credits
 
 - https://github.com/supabase/realtime-js

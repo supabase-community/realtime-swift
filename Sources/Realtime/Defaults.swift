@@ -20,13 +20,16 @@
 
 import Foundation
 
-/// A collection of default values and behaviors used accross the Client
+/// A collection of default values and behaviors used across the Client
 public enum Defaults {
   /// Default timeout when sending messages
   public static let timeoutInterval: TimeInterval = 10.0
 
   /// Default interval to send heartbeats on
   public static let heartbeatInterval: TimeInterval = 30.0
+
+  /// Default maximum amount of time which the system may delay heartbeat events in order to minimize power usage
+  public static let heartbeatLeeway: DispatchTimeInterval = .milliseconds(10)
 
   /// Default reconnect algorithm for the socket
   public static let reconnectSteppedBackOff: (Int) -> TimeInterval = { tries in
@@ -38,26 +41,40 @@ public enum Defaults {
     tries > 3 ? 10 : [1, 2, 5][tries - 1]
   }
 
+  public static let vsn = "2.0.0"
+
+  /// Default encoder
+  public static let encoder: JSONEncoder = JSONEncoder()
+
   /// Default encode function, utilizing JSONSerialization.data
-  public static let encode: ([String: Any]) -> Data = { json in
-    try! JSONSerialization
+  public static let encode: (Any) -> Data = { json in
+    assert(JSONSerialization.isValidJSONObject(json), "Invalid JSON object")
+    return
+      try! JSONSerialization
       .data(
         withJSONObject: json,
-        options: JSONSerialization.WritingOptions())
+        options: JSONSerialization.WritingOptions()
+      )
   }
 
+  /// Default decoder
+  public static let decoder: JSONDecoder = JSONDecoder()
+
   /// Default decode function, utilizing JSONSerialization.jsonObject
-  public static let decode: (Data) -> [String: Any]? = { data in
+  public static let decode: (Data) -> Any? = { data in
     guard
       let json =
         try? JSONSerialization
         .jsonObject(
           with: data,
-          options: JSONSerialization.ReadingOptions())
-        as? [String: Any]
+          options: JSONSerialization.ReadingOptions()
+        )
     else { return nil }
     return json
   }
+
+  public static let heartbeatQueue: DispatchQueue = .init(
+    label: "com.phoenix.socket.heartbeat")
 }
 
 /// Represents the multiple states that a Channel can be in
@@ -74,6 +91,11 @@ public enum ChannelState: String {
 /// a channel regarding a Channel's lifecycle or
 /// that can be registered to be notified of.
 public enum ChannelEvent: RawRepresentable {
+  public enum Presence: String {
+    case state
+    case diff
+  }
+
   case heartbeat
   case join
   case leave
@@ -87,6 +109,12 @@ public enum ChannelEvent: RawRepresentable {
   case delete
 
   case channelReply(String)
+
+  case broadcast
+
+  case presence
+  case presenceState
+  case presenceDiff
 
   public var rawValue: String {
     switch self {
@@ -102,7 +130,13 @@ public enum ChannelEvent: RawRepresentable {
     case .update: return "update"
     case .delete: return "delete"
 
-    case .channelReply(let reference): return "chan_reply_\(reference)"
+    case let .channelReply(reference): return "chan_reply_\(reference)"
+
+    case .broadcast: return "broadcast"
+
+    case .presence: return "presence"
+    case .presenceState: return "presence_state"
+    case .presenceDiff: return "presence_diff"
     }
   }
 
@@ -118,14 +152,18 @@ public enum ChannelEvent: RawRepresentable {
     case "insert": self = .insert
     case "update": self = .update
     case "delete": self = .delete
+    case "broadcast": self = .broadcast
+    case "presence": self = .presence
+    case "presence_state": self = .presenceState
+    case "presence_diff": self = .presenceDiff
     default: return nil
     }
   }
 
-  static func isLifecyleEvent(_ event: ChannelEvent) -> Bool {
-    switch event {
+  var isLifecyleEvent: Bool {
+    switch self {
     case .join, .leave, .reply, .error, .close: return true
-    case .heartbeat, .all, .insert, .update, .delete, .channelReply: return false
+    default: return false
     }
   }
 }
@@ -142,9 +180,9 @@ public enum ChannelTopic: RawRepresentable, Equatable {
   public var rawValue: String {
     switch self {
     case .all: return "realtime:*"
-    case .schema(let name): return "realtime:\(name)"
-    case .table(let tableName, let schema): return "realtime:\(schema):\(tableName)"
-    case .column(let columnName, let value, let table, let schema):
+    case let .schema(name): return "realtime:\(name)"
+    case let .table(tableName, schema): return "realtime:\(schema):\(tableName)"
+    case let .column(columnName, value, table, schema):
       return "realtime:\(schema):\(table):\(columnName)=eq.\(value)"
     case .heartbeat: return "phoenix"
     }
@@ -169,7 +207,8 @@ public enum ChannelTopic: RawRepresentable, Equatable {
         {
           self = .column(
             String(condition[0]), value: String(condition[1].dropFirst(3)), table: String(parts[1]),
-            schema: String(parts[0]))
+            schema: String(parts[0])
+          )
         } else {
           return nil
         }
@@ -178,4 +217,45 @@ public enum ChannelTopic: RawRepresentable, Equatable {
       }
     }
   }
+}
+
+/// Represents the broadcast and presence options for a channel.
+public struct ChannelOptions {
+  /// Used to track presence payload across clients. Must be unique per client. If `nil`, the server will generate one.
+  var presenceKey: String?
+  /// Enables the client to receieve their own`broadcast` messages
+  var broadcastSelf: Bool
+  /// Instructs the server to acknoledge the client's `broadcast` messages
+  var broadcastAcknowledge: Bool
+
+  public init(
+    presenceKey: String? = nil, broadcastSelf: Bool = false, broadcastAcknowledge: Bool = false
+  ) {
+    self.presenceKey = presenceKey
+    self.broadcastSelf = broadcastSelf
+    self.broadcastAcknowledge = broadcastAcknowledge
+  }
+
+  /// Parameters used to configure the channel
+  var params: [String: [String: Any]] {
+    [
+      "config": [
+        "presence": [
+          "key": presenceKey ?? ""
+        ],
+        "broadcast": [
+          "ack": broadcastAcknowledge,
+          "self": broadcastSelf,
+        ],
+      ]
+    ]
+  }
+
+}
+
+/// Represents the different status of a push
+public enum PushStatus: String {
+  case ok
+  case error
+  case timeout
 }

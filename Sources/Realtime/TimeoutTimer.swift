@@ -57,7 +57,7 @@ class TimeoutTimer {
   var tries: Int = 0
 
   /// The Queue to execute on. In testing, this is overridden
-  var queue = TimerQueue.main
+  var queue: TimerQueue = .main
 
   /// Resets the Timer, clearing the number of tries and stops
   /// any scheduled timeout.

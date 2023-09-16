@@ -34,42 +34,54 @@ public class Message {
   /// Message event
   public let event: ChannelEvent
 
+  /// The raw payload from the Message, including a nested response from
+  /// phx_reply events. It is recommended to use `payload` instead.
+  internal let rawPayload: Payload
+
   /// Message payload
-  public var payload: [String: Any]
+  public var payload: Payload {
+    guard let response = rawPayload["response"] as? Payload
+    else { return rawPayload }
+    return response
+  }
 
   /// Convenience accessor. Equivalent to getting the status as such:
   /// ```swift
   /// message.payload["status"]
   /// ```
-  public var status: String? {
-    return payload["status"] as? String
+  public var status: PushStatus? {
+    guard let status = rawPayload["status"] as? String else {
+      return nil
+    }
+    return PushStatus(rawValue: status)
   }
 
   init(
     ref: String = "",
     topic: ChannelTopic = .all,
     event: ChannelEvent = .all,
-    payload: [String: Any] = [:],
+    payload: Payload = [:],
     joinRef: String? = nil
   ) {
     self.ref = ref
     self.topic = topic
     self.event = event
-    self.payload = payload
+    rawPayload = payload
     self.joinRef = joinRef
   }
 
-  init?(json: [String: Any]) {
-    ref = json["ref"] as? String ?? ""
-    joinRef = json["join_ref"] as? String
+  init?(json: [Any?]) {
+    guard json.count > 4 else { return nil }
+    joinRef = json[0] as? String
+    ref = json[1] as? String ?? ""
 
-    if let topic = json["topic"] as? String,
-      let event = json["event"] as? String,
-      let payload = json["payload"] as? [String: Any]
+    if let topic = (json[2] as? String).flatMap(ChannelTopic.init(rawValue:)),
+      let event = (json[3] as? String).flatMap(ChannelEvent.init(rawValue:)),
+      let payload = json[4] as? Payload
     {
-      self.topic = ChannelTopic(rawValue: topic) ?? .all
-      self.event = ChannelEvent(rawValue: event) ?? .all
-      self.payload = payload
+      self.topic = topic
+      self.event = event
+      rawPayload = payload
     } else {
       return nil
     }
