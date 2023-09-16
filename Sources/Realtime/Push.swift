@@ -237,7 +237,7 @@ public class Push {
 
     /// Setup and start the Timeout timer.
     let workItem = DispatchWorkItem {
-        self.trigger(.timeout, payload: [:])
+      self.trigger(.timeout, payload: [:])
     }
 
     timeoutWorkItem = workItem

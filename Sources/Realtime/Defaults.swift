@@ -42,7 +42,7 @@ public enum Defaults {
   }
 
   public static let vsn = "2.0.0"
-  
+
   /// Default encoder
   public static let encoder: JSONEncoder = JSONEncoder()
 
@@ -56,10 +56,10 @@ public enum Defaults {
         options: JSONSerialization.WritingOptions()
       )
   }
-  
+
   /// Default decoder
   public static let decoder: JSONDecoder = JSONDecoder()
-  
+
   /// Default decode function, utilizing JSONSerialization.jsonObject
   public static let decode: (Data) -> Any? = { data in
     guard
@@ -111,7 +111,7 @@ public enum ChannelEvent: RawRepresentable {
   case channelReply(String)
 
   case broadcast
-  
+
   case presence
   case presenceState
   case presenceDiff
@@ -131,9 +131,9 @@ public enum ChannelEvent: RawRepresentable {
     case .delete: return "delete"
 
     case let .channelReply(reference): return "chan_reply_\(reference)"
-      
+
     case .broadcast: return "broadcast"
-      
+
     case .presence: return "presence"
     case .presenceState: return "presence_state"
     case .presenceDiff: return "presence_diff"
@@ -227,13 +227,15 @@ public struct ChannelOptions {
   var broadcastSelf: Bool
   /// Instructs the server to acknoledge the client's `broadcast` messages
   var broadcastAcknowledge: Bool
-    
-  public init(presenceKey: String? = nil, broadcastSelf: Bool = false, broadcastAcknowledge: Bool = false) {
+
+  public init(
+    presenceKey: String? = nil, broadcastSelf: Bool = false, broadcastAcknowledge: Bool = false
+  ) {
     self.presenceKey = presenceKey
     self.broadcastSelf = broadcastSelf
     self.broadcastAcknowledge = broadcastAcknowledge
   }
-  
+
   /// Parameters used to configure the channel
   var params: [String: [String: Any]] {
     [
@@ -243,8 +245,8 @@ public struct ChannelOptions {
         ],
         "broadcast": [
           "ack": broadcastAcknowledge,
-          "self": broadcastSelf
-        ]
+          "self": broadcastSelf,
+        ],
       ]
     ]
   }
@@ -253,7 +255,7 @@ public struct ChannelOptions {
 
 /// Represents the different status of a push
 public enum PushStatus: String {
-    case ok
-    case error
-    case timeout
+  case ok
+  case error
+  case timeout
 }
