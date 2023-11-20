@@ -1,5 +1,9 @@
 # `realtime-swift`
 
+> [!WARNING]  
+> This repository is deprecated and it was moved to the [monorepo](https://github.com/supabase-community/supabase-swift).
+> Repository will remain live to support old versions of the library, but any new updates **MUST** be done on the monorepo.
+
 Listens to changes in a PostgreSQL Database and via websockets.
 
 A Swift client for Supabase [Realtime](https://github.com/supabase/realtime-swift) server.
